@@ -1,14 +1,14 @@
+import SkeletonNotas from '@/app/components/loading';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import SkeletonNotas from '@/app/components/loading';
 import {
   FlatList,
-  Text,
-  View,
+  Keyboard,
   StyleSheet,
+  Text,
   TextInput,
   TouchableOpacity,
-  Keyboard,
+  View,
 } from 'react-native';
 
 const notasMock = [
@@ -72,7 +72,7 @@ export default function EntradasScreen() {
           <TouchableOpacity
               onPress={() => {
                 router.push({
-                  pathname: '/tabs/menu/entrada/itensEntradas',
+                  pathname: '/tabs/menu/entrada/itens/itensEntradas',
                   params: {
                     numero: item.numero,
                     nome: item.nome,

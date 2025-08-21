@@ -10,51 +10,50 @@ import {
   View
 } from 'react-native';
 import SkeletonNotas from '../components/loading';
+import api from '../services/api';
 import { useFilial } from './contexts/filialContext';
 
 export default function FilialScreen() {
   const { setFilialSelecionada } = useFilial();
   const router = useRouter();
 
-  const empresas = [
-    {
-      title: '001 LEMOS E MARQUES IND.',
-      data: ['003: Rio Grande do Norte', 'Filial A2', 'Filial A3'],
-    },
-    {
-      title: '002 LEMOS E MARQUES COM.',
-      data: ['Filial B1', 'Filial B2'],
-    },
-    {
-      title: '003 LEMOS E MARQUES DIST.',
-      data: ['Filial C1'],
-    },
-  ];
+  const [empresas, setEmpresas] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-      setTimeout(() => {
+  useEffect(() => {
+    const fetchEmpresas = async () => {
+      const url = api.defaults.baseURL + "/empresas";
+      //console.log("Chamando URL:", url);
+      try {
+        const response = await api.get("/empresas"); // coloque a URL da sua API aqui
+        // Transformando o retorno da API para o formato do SectionList
+        //console.log(api.get("/empresas"));
+        const dadosFormatados = response.data.map(empresa => ({
+          title: empresa.nm_emp,
+          data: empresa.filiais.map(filial => `${filial.cd_fil}: ${filial.nm_fil}`)
+        }));
+        setEmpresas(dadosFormatados);
+      } catch (error) {
+        console.error("Chamando URL:" + url, error);
+      } finally {
         setLoading(false);
-      }, 2000);
-    }, []);
-  
-    if (loading) return <SkeletonNotas />;
+      }
+    };
+
+    fetchEmpresas();
+  }, []);
+
+  if (loading) return <SkeletonNotas />;
 
   return (
     <View style={{ flex: 1 }}>
-      {/*<StatusBar backgroundColor="#093C85" barStyle="light-content" />*/}
-
-      {/* Cabeçalho */}
       <View style={styles.header}>
         <Text style={styles.headerText}>Olá Rigoberto o/</Text>
       </View>
 
       <View style={styles.container}>
-
-        {/* Título */}
-        <View style={{alignItems: 'center' }}>
-            <Text style={styles.title}>Selecione a Filial</Text>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={styles.title}>Selecione a Filial</Text>
         </View>
 
         <SectionList
@@ -88,28 +87,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#093C85',
     paddingVertical: 20,
     paddingHorizontal: 20,
-    //elevation: 4,
     marginTop: StatusBar.currentHeight || 0,
   },
   headerText: {
     color: '#fff',
     fontSize: 20,
     fontWeight: 'bold',
-    
   },
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
     padding: 20,
   },
-
   title: {
     fontSize: 18,
     color: '#093C85',
     fontWeight: 'bold',
     marginBottom: 5,
   },
-
   empresa: {
     fontSize: 14,
     fontWeight: 'bold',

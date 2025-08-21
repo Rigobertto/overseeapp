@@ -64,7 +64,7 @@ export default function DrawerLayout() {
 
         }}   
       >
-          <Drawer.Screen
+          {/* <Drawer.Screen
             name="entrada/entradas"
             options={{
               headerShown: true,
@@ -102,7 +102,7 @@ export default function DrawerLayout() {
                 <FontAwesome5 name="box-open" size={size} color={color} />
               ),
             }}
-          />
+          /> */}
 
           {/*<Drawer.Screen name="saida/saidas" 
             options={{
@@ -144,6 +144,17 @@ export default function DrawerLayout() {
           />*/}
 
           <Drawer.Screen
+            name="entrada"
+            options={{
+              headerShown: false, // IMPORTANTE! Isso impede o header do Drawer nas telas internas
+              drawerLabel: 'Notas de Entrada',
+              drawerIcon: ({ color, size }) => (
+                <FontAwesome5 name="box-open" size={size} color={color} />
+              ),
+            }}
+          />
+
+          <Drawer.Screen
             name="saida"
             options={{
               headerShown: false, // IMPORTANTE! Isso impede o header do Drawer nas telas internas
@@ -154,7 +165,18 @@ export default function DrawerLayout() {
             }}
           />
 
-          <Drawer.Screen name="requisicao/requisicoes" 
+          <Drawer.Screen
+            name="requisicao"
+            options={{
+              headerShown: false, // IMPORTANTE! Isso impede o header do Drawer nas telas internas
+              drawerLabel: 'Requisições',
+              drawerIcon: ({ color, size }) => (
+                <FontAwesome5 name="toolbox" size={size} color={color} />
+              ),
+            }}
+          />
+
+          {/* <Drawer.Screen name="requisicao/requisicoes" 
             options={{
               headerShown: true,
               drawerLabel: 'Requisições',
@@ -191,7 +213,7 @@ export default function DrawerLayout() {
                 <FontAwesome5 name="toolbox" size={size} color={color} />
               ),
             }}
-          />
+          /> */}
 
           <Drawer.Screen name="suporte/suporte" 
             options={{

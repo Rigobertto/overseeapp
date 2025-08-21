@@ -2,13 +2,13 @@ import SkeletonNotas from '@/app/components/loading';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    FlatList,
-    Keyboard,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  FlatList,
+  Keyboard,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 const notasMock = [
@@ -72,7 +72,7 @@ export default function RequisicoesScreen() {
           <TouchableOpacity
               onPress={() => {
                 router.push({
-                  pathname: '/tabs/menu/requisicao/itensRequisicoes',
+                  pathname: '/tabs/menu/requisicao/itens/itensRequisicoes',
                   params: {
                     numero: item.numero,
                     nome: item.nome,
