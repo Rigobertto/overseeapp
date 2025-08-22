@@ -1,14 +1,17 @@
+import SkeletonNotas from '@/app/components/loading';
+import api from '@/app/services/api';
+import { useFilial } from '@/app/tabs/contexts/filialContext';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-    FlatList,
-    Keyboard,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  FlatList,
+  Keyboard,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 const produtosMock = [
@@ -18,25 +21,67 @@ const produtosMock = [
 ];
 
 export default function ItensRequisicoesScreen() {
-
-  const { numero, nome, valor } = useLocalSearchParams();
+  const { filialSelecionada } = useFilial();
+  const { nr_mov, nm_custo } = useLocalSearchParams();
   const [busca, setBusca] = useState('');
-  const [notas, setProdutos] = useState(produtosMock);
+  const [notas, setNotas] = useState<any[]>([]);
+  const [notasFiltradas, setNotasFiltradas] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchItensRequisicao = async () => {
+      const url = `/requisicoes/itens/?cd_fil=${filialSelecionada?.cd_fil}&nr_mov=${nr_mov}`;
+      try {
+        const response = await api.get(url);
+        const dadosFormatados = response.data.map((item: any) => ({
+          id: item.id,
+          nome: item.nm_mat,
+          codigo: item.cd_mat,
+          quantidade: item.qt_nota,
+          barcode: item.cd_gtin,
+        }));
+        setNotas(dadosFormatados);
+        setNotasFiltradas(dadosFormatados); // inicializa também a lista exibida
+      } catch (error) {
+        console.error("Erro ao buscar itens em: " + url, error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (filialSelecionada && nr_mov) {
+      fetchItensRequisicao();
+    }
+  }, [filialSelecionada, nr_mov]);
 
   const filtrarProdutos = () => {
-    const resultado = produtosMock.filter(p =>
-      p.nome.toLowerCase().includes(busca.toLowerCase().trim())
+    const termo = busca.toLowerCase().trim();
+
+    if (!termo) {
+      setNotasFiltradas(notas); // se busca estiver vazia, volta lista completa
+      return;
+    }
+
+    const resultado = notas.filter(p =>
+      p.nome.toLowerCase().includes(termo) ||
+      p.codigo.toLowerCase().includes(termo) ||
+      p.barcode.toLowerCase().includes(termo)
     );
-    setProdutos(resultado);
-    Keyboard.dismiss(); // fecha o teclado após buscar
+
+    setNotasFiltradas(resultado);
+    Keyboard.dismiss();
   };
+
+  if (loading) {
+    return <SkeletonNotas />;
+  }
 
   return (
     <View style={styles.container}>
       {/* Título */}
       <View style={{ marginBottom: 16, alignItems: 'center'}}>
         <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#093C85' }}>
-          {nome} - {numero}
+          {nm_custo} - {nr_mov}
         </Text>
       </View>
       
@@ -44,7 +89,7 @@ export default function ItensRequisicoesScreen() {
       <View style={styles.buscaContainer}>
         <TextInput
           style={styles.input}
-          placeholder="Buscar materiais..."
+          placeholder="Buscar por código, nome ou barcode..."
           value={busca}
           onChangeText={setBusca}
         />
@@ -55,31 +100,28 @@ export default function ItensRequisicoesScreen() {
 
       {/* Lista */}
       <FlatList
-        data={notas}
-        keyExtractor={(item) => item.id}
+        data={notasFiltradas}
+        keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => 
           <View style={styles.produtoCard}>
-
             <Text style={styles.nome}>{item.nome} - {item.codigo}</Text>
             <Text style={styles.quantidade}>Quantidade: {item.quantidade}</Text>
 
             <View style={styles.codigo}>
               <FontAwesome6 name="barcode" size={20} color="black" />
-              <Text style={[styles.barcode]}>
-                {item.barcode}
-              </Text>           
+              <Text style={styles.barcode}>{item.barcode}</Text>           
             </View>
           </View>
-          
         }
         ListEmptyComponent={
-          <Text style={styles.nenhumResultado}>Nenhum material da requisição encontrado.</Text>
+          <Text style={styles.nenhumResultado}>Nenhum material encontrado.</Text>
         }
         ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: '#fff' },

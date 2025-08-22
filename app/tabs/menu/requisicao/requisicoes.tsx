@@ -10,35 +10,46 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-
-const notasMock = [
-  { id: '1', nome: 'Lemos e Marques', numero: '20250001', valor: 299.90 },
-  { id: '2', nome: 'Singularity LTDA', numero: '20250002', valor: 149.99 },
-  { id: '3', nome: 'Casa & Construção', numero: '20250003', valor: 899.00 },
-  { id: '4', nome: 'Supermercado Atacadão', numero: '20250004', valor: 1299.00 },
-  { id: '5', nome: 'Amazon LTDA', numero: '20250005', valor: 359.90 },
-];
+import api from '../../../services/api';
+import { useFilial } from '../../contexts/filialContext';
 
 export default function RequisicoesScreen() {
+  const { filialSelecionada } = useFilial();
 
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
-  const [notas, setNotas] = useState(notasMock);
+  const [notas, setNotas] = useState<any[]>([]);
 
   useEffect(() => {
-    setTimeout(() => {
-      setLoading(false);
-    }, 2000);
-  }, []);
+    const fetchRequisicoes = async () => {
+      const url = api.defaults.baseURL + `/requisicoes/${filialSelecionada?.cd_fil}`;
+      try {
+        const response = await api.get(`/requisicoes/${filialSelecionada?.cd_fil}`);
+        const dadosFormatados = response.data.map((requisicao: any) => ({
+          id: requisicao.nr_mov, // usar nr_mov como chave
+          nr_mov: requisicao.nr_mov,
+          dt_mov: requisicao.dt_mov,
+          nm_custo: requisicao.nm_custo,
+        }));
+        setNotas(dadosFormatados);
+      } catch (error) {
+        console.error("Erro ao buscar requisições em: " + url, error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRequisicoes();
+  }, [filialSelecionada]);
 
   if (loading) return <SkeletonNotas />;
 
   const filtrarNotas = () => {
-    const resultado = notasMock.filter(p =>
-      p.nome.toLowerCase().includes(busca.toLowerCase().trim())
+    const resultado = notas.filter(p =>
+      p.nm_custo.toLowerCase().includes(busca.toLowerCase().trim())
     );
     setNotas(resultado);
-    Keyboard.dismiss(); // fecha o teclado após buscar
+    Keyboard.dismiss();
   };
 
   return (
@@ -54,7 +65,7 @@ export default function RequisicoesScreen() {
       <View style={styles.buscaContainer}>
         <TextInput
           style={styles.input}
-          placeholder="Buscar notas..."
+          placeholder="Buscar por centro de custo..."
           value={busca}
           onChangeText={setBusca}
         />
@@ -66,31 +77,29 @@ export default function RequisicoesScreen() {
       {/* Lista */}
       <FlatList
         data={notas}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
-
           <TouchableOpacity
-              onPress={() => {
-                router.push({
-                  pathname: '/tabs/menu/requisicao/itens/itensRequisicoes',
-                  params: {
-                    numero: item.numero,
-                    nome: item.nome,
-                    valor: item.valor.toFixed(2),
-                  },
-                });
-              }}
+            onPress={() => {
+              router.push({
+                pathname: '/tabs/menu/requisicao/itens/itensRequisicoes',
+                params: {
+                  nr_mov: item.nr_mov,
+                  dt_mov: item.dt_mov,
+                  nm_custo: item.nm_custo,
+                },
+              });
+            }}
           >
             <View style={styles.notasCard}>
-              <Text style={styles.nome}>{item.nome}</Text>
-              <Text style={styles.numero}>{item.numero}</Text>
-              <Text style={styles.valor}>R$ {item.valor.toFixed(2)}</Text>
+              <Text style={styles.nome}>{item.nm_custo}</Text>
+              <Text style={styles.numero}>N° {item.nr_mov}</Text>
+              <Text style={styles.valor}>{new Date(item.dt_mov).toLocaleDateString("pt-BR")}</Text>
             </View>
           </TouchableOpacity>
-
         )}
         ListEmptyComponent={
-          <Text style={styles.nenhumResultado}>Nenhuma requisicao de material encontrada.</Text>
+          <Text style={styles.nenhumResultado}>Nenhuma requisição de material encontrada.</Text>
         }
         ItemSeparatorComponent={() => <View style={styles.separator} />}
       />

@@ -7,7 +7,9 @@ import { useFilial } from '../../contexts/filialContext';
 export default function RequisicaoStackLayout() {
 
       const { filialSelecionada } = useFilial();
-      const filialName = filialSelecionada ? `${filialSelecionada}` : 'Menu';
+      const filialName = filialSelecionada
+      ? `${filialSelecionada.cd_fil} - ${filialSelecionada.nm_fil}`
+      : 'Menu';
 
   return (
     <Stack

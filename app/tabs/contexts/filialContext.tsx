@@ -1,14 +1,20 @@
 import React, { createContext, useContext, useState } from 'react';
 
+// Definimos o tipo da filial
+type Filial = {
+  cd_fil: string;
+  nm_fil: string;
+};
+
 type FilialContextType = {
-  filialSelecionada: string | null;
-  setFilialSelecionada: (filial: string) => void;
+  filialSelecionada: Filial | null;
+  setFilialSelecionada: (filial: Filial) => void;
 };
 
 const FilialContext = createContext<FilialContextType | undefined>(undefined);
 
 export const FilialProvider = ({ children }: { children: React.ReactNode }) => {
-  const [filialSelecionada, setFilialSelecionada] = useState<string | null>(null);
+  const [filialSelecionada, setFilialSelecionada] = useState<Filial | null>(null);
 
   return (
     <FilialContext.Provider value={{ filialSelecionada, setFilialSelecionada }}>

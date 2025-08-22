@@ -8,7 +8,9 @@ import { useFilial } from '../contexts/filialContext';
 
 export default function DrawerLayout() {
   const { filialSelecionada } = useFilial();
-  const filialName = filialSelecionada ? `Filial ${filialSelecionada}` : 'Menu';
+  const filialName = filialSelecionada
+  ? `Filial ${filialSelecionada.cd_fil} - ${filialSelecionada.nm_fil}`
+  : 'Menu';
 
   return (
     <>  

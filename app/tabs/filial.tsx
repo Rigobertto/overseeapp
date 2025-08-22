@@ -30,7 +30,10 @@ export default function FilialScreen() {
         //console.log(api.get("/empresas"));
         const dadosFormatados = response.data.map(empresa => ({
           title: empresa.nm_emp,
-          data: empresa.filiais.map(filial => `${filial.cd_fil}: ${filial.nm_fil}`)
+          data: empresa.filiais.map(filial => ({
+            cd_fil: filial.cd_fil,
+            nm_fil: filial.nm_fil
+          }))
         }));
         setEmpresas(dadosFormatados);
       } catch (error) {
@@ -66,13 +69,20 @@ export default function FilialScreen() {
           renderItem={({ item }) => (
             <TouchableOpacity
               onPress={() => {
-                setFilialSelecionada(item);
+                setFilialSelecionada(item); // agora item tem cd_fil e nm_fil
                 router.push('/tabs/menu/entrada/entradas');
               }}
-            >
-              <View style={styles.filial}>
-                <Text style={styles.filialText}>{item}</Text>
-                <Feather name="chevron-right" size={24} color="#093C85" style={{ marginLeft: 'auto' }} />
+          >
+            <View style={styles.filial}>
+              <Text style={styles.filialText}>
+                    {item.cd_fil}: {item.nm_fil}
+              </Text>
+              <Feather
+                    name="chevron-right"
+                    size={24}
+                    color="#093C85"
+                    style={{ marginLeft: 'auto' }}
+              />
               </View>
             </TouchableOpacity>
           )}
