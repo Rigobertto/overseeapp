@@ -12,6 +12,7 @@ import {
 import SkeletonNotas from '../components/loading';
 import api from '../services/api';
 import { useFilial } from './contexts/filialContext';
+import { useUsuario } from './contexts/usuarioContext';
 
 export default function FilialScreen() {
   const { setFilialSelecionada } = useFilial();
@@ -19,6 +20,10 @@ export default function FilialScreen() {
 
   const [empresas, setEmpresas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { usuarioSelecionada } = useUsuario();
+  const usuarioName = usuarioSelecionada
+  ? `Olá  ${usuarioSelecionada.nome} o/`
+  : 'Olá o/';
 
   useEffect(() => {
     const fetchEmpresas = async () => {
@@ -51,7 +56,7 @@ export default function FilialScreen() {
   return (
     <View style={{ flex: 1 }}>
       <View style={styles.header}>
-        <Text style={styles.headerText}>Olá Rigoberto o/</Text>
+        <Text style={styles.headerText}>{usuarioName}</Text>
       </View>
 
       <View style={styles.container}>

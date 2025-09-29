@@ -1,84 +1,119 @@
+import SkeletonNotas from '@/app/components/loading';
+import api from '@/app/services/api';
+import { useFilial } from '@/app/tabs/contexts/filialContext';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-    FlatList,
-    Keyboard,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  FlatList,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from 'react-native';
-
-const produtosMock = [
-  { id: '1', nome: 'Moto G22', codigo: '20250001', quantidade: 10.5, barcode: '123456789012' },
-  { id: '2', nome: 'Iphone 16 Pro Max Plus Advanced Blaster Master', codigo: '20250002', quantidade: 15, barcode: '123456789012' },
-  { id: '3', nome: 'Teclado Multilaser', codigo: '20250003', quantidade: 80, barcode: '123456789012' },
-];
 
 export default function ItensSaidasScreen() {
 
-  const { numero, nome, valor } = useLocalSearchParams();
-  const [busca, setBusca] = useState('');
-  const [notas, setProdutos] = useState(produtosMock);
+ const { filialSelecionada } = useFilial();
 
-  const filtrarProdutos = () => {
-    const resultado = produtosMock.filter(p =>
-      p.nome.toLowerCase().includes(busca.toLowerCase().trim())
+  const { nr_nf, cd_cli, nm_cli } = useLocalSearchParams();
+  const [busca, setBusca] = useState('');
+  const [notas, setNotas] = useState<any[]>([]);
+  const [notasFiltradas, setNotasFiltradas] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchItensSaidas = async () => {
+      const url = `/nfsaidas/itens/?cd_fil=${filialSelecionada?.cd_fil}&nr_nf=${nr_nf}`;
+      try {
+        const response = await api.get(url);
+        const dadosFormatados = response.data.map((item: any) => ({
+          id: item.id,
+          nome: item.nm_mat,
+          codigo: item.cd_mat,
+          quantidade: item.qt_prod,
+          barcode: item.cd_gtin,
+        }));
+        setNotas(dadosFormatados);
+        setNotasFiltradas(dadosFormatados); // inicializa também a lista exibida
+      } catch (error) {
+        console.error("Erro ao buscar itens em: " + url, error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (filialSelecionada && nr_nf) {
+      fetchItensSaidas();
+    }
+  }, [filialSelecionada, nr_nf]);
+
+  const filtrarProdutos = (texto: string) => {
+    const termo = texto.toLowerCase().trim();
+
+    if (!termo) {
+      setNotasFiltradas(notas);
+      return;
+    }
+
+    const resultado = notas.filter(p =>
+      p.nome.toLowerCase().includes(termo) ||
+      p.codigo.toLowerCase().includes(termo) ||
+      p.barcode.toLowerCase().includes(termo)
     );
-    setProdutos(resultado);
-    Keyboard.dismiss(); // fecha o teclado após buscar
+
+    setNotasFiltradas(resultado);
   };
 
+
+  if (loading) {
+    return <SkeletonNotas />;
+  }
+
   return (
-    <View style={styles.container}>
-      {/* Título */}
-      <View style={{ marginBottom: 16, alignItems: 'center'}}>
-        <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#093C85' }}>
-          {nome} - {numero}
-        </Text>
-      </View>
-      
-      {/* Campo de Busca */}
-      <View style={styles.buscaContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="Buscar produtos..."
-          value={busca}
-          onChangeText={setBusca}
-        />
-        <TouchableOpacity style={styles.botao} onPress={filtrarProdutos}>
-          <Text style={styles.textoBotao}>Buscar</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Lista */}
-      <FlatList
-        data={notas}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => 
-          <View style={styles.produtoCard}>
-
-            <Text style={styles.nome}>{item.nome} - {item.codigo}</Text>
-            <Text style={styles.quantidade}>Quantidade: {item.quantidade}</Text>
-
-            <View style={styles.codigo}>
-              <FontAwesome6 name="barcode" size={20} color="black" />
-              <Text style={[styles.barcode]}>
-                {item.barcode}
-              </Text>           
+      <View style={styles.container}>
+        {/* Título */}
+        <View style={{ marginBottom: 16, alignItems: 'center'}}>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#093C85' }}>
+            {nm_cli} - {nr_nf}
+          </Text>
+        </View>
+        
+        {/* Campo de Busca */}
+        <View style={styles.buscaContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder="Código, nome ou barras..."
+            value={busca}
+            onChangeText={(texto) => {
+              setBusca(texto);
+              filtrarProdutos(texto); // filtra em tempo real
+            }}
+          />
+        </View>
+  
+        {/* Lista */}
+        <FlatList
+          data={notasFiltradas}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => 
+            <View style={styles.produtoCard}>
+              <Text style={styles.nome}>{item.nome} - {item.codigo}</Text>
+              <Text style={styles.quantidade}>Quantidade: {item.quantidade}</Text>
+  
+              <View style={styles.codigo}>
+                <FontAwesome6 name="barcode" size={20} color="black" />
+                <Text style={styles.barcode}>{item.barcode}</Text>           
+              </View>
             </View>
-          </View>
-          
-        }
-        ListEmptyComponent={
-          <Text style={styles.nenhumResultado}>Nenhum produto da nota de saída encontrado.</Text>
-        }
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-      />
-    </View>
-  );
+          }
+          ListEmptyComponent={
+            <Text style={styles.nenhumResultado}>Nenhum material encontrado.</Text>
+          }
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+        />
+      </View>
+    );
 }
 
 const styles = StyleSheet.create({

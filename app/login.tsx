@@ -1,102 +1,139 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
-import { Feather, Ionicons, MaterialIcons } from '@expo/vector-icons';
+import api from '@/app/services/api';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Checkbox from 'expo-checkbox';
 import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import {
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { useUsuario } from './tabs/contexts/usuarioContext';
 
 export default function LoginScreen() {
+  const { setUsuarioSelecionada } = useUsuario();
   const [secure, setSecure] = useState(true);
   const [rememberMe, setRememberMe] = useState(false);
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
   const router = useRouter();
 
+async function handleLogin() {
+  try {
+    const response = await api.post('/login', {
+      email,
+      senha
+    });
+    console.log("rota: " + response.data?.token);
+
+    if (response.data?.token) {
+      const token = response.data.token;
+
+      const usuario = {
+        cd_usu: response.data.cd_usu,
+        nome: response.data.nome
+      };
+      setUsuarioSelecionada(usuario);
+      // 1. Salvar no AsyncStorage
+      await AsyncStorage.setItem('token', token);
+      // 2. Definir no axios para as próximas chamadas
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+      // 3. Navegar para a home
+      router.push('/tabs/filial');
+    } else {
+      Alert.alert('Erro', 'Credenciais inválidas');
+    }
+  } catch (error) {
+    console.error(error);
+    Alert.alert('Erro', 'Falha ao tentar logar. Verifique suas credenciais.');
+  }
+}
+
   return (
-  <KeyboardAvoidingView
-    style={{ flex: 1 }}
-    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-  >
-    <ScrollView contentContainerStyle={styles.scrollContainer}>
-      <View style={styles.container}>
-        <View style={styles.logo}>
-          <Image
-            source={require('../assets/images/logomarca.png')}
-            style={{ width: 200, height: 72, marginBottom: 30,}}
-          />
-        </View>
-
-      <View style={styles.credentials}>
-        <Text style={styles.bemvindo}>Bem-vindo (a)</Text>
-
-        {/* Campo de e-mail */}
-        <View style={styles.inputContainer}>
-          <MaterialIcons name="account-circle" size={20} color="#093C85" style={styles.icon} />
-          <TextInput
-            inputMode="email"
-            autoComplete="email"
-            placeholder="Email"
-            style={styles.input}
-          />
-        </View>
-
-        {/* Campo de senha */}
-        <View style={styles.inputContainer}>
-          <MaterialIcons name="lock" size={20} color="#093C85" style={styles.icon} />
-          <TextInput
-            secureTextEntry={secure}
-            placeholder="Senha"
-            style={styles.input}
-          />
-          <TouchableOpacity onPress={() => setSecure(!secure)}>
-            <Ionicons
-              name={secure ? 'eye-off' : 'eye'}
-              size={20}
-              color="#093C85"
-              style={styles.icon}
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={'height'}
+      keyboardVerticalOffset={20}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <View style={styles.container}>
+          <View style={styles.logo}>
+            <Image
+              source={require('../assets/images/logomarca.png')}
+              style={{ width: 200, height: 72, marginBottom: 30 }}
             />
-          </TouchableOpacity>
-        </View>
+          </View>
 
-            {/* Esqueci minha senha e Lembre-se de mim */}
+          <View style={styles.credentials}>
+            <Text style={styles.bemvindo}>Bem-vindo (a)</Text>
+
+            {/* Campo de e-mail */}
+            <View style={styles.inputContainer}>
+              <MaterialIcons name="account-circle" size={20} color="#093C85" style={styles.icon} />
+              <TextInput
+                inputMode="email"
+                autoComplete="email"
+                placeholder="Email"
+                style={styles.input}
+                value={email}
+                onChangeText={setEmail}
+              />
+            </View>
+
+            {/* Campo de senha */}
+            <View style={styles.inputContainer}>
+              <MaterialIcons name="lock" size={20} color="#093C85" style={styles.icon} />
+              <TextInput
+                secureTextEntry={secure}
+                placeholder="Senha"
+                style={styles.input}
+                value={senha}
+                onChangeText={setSenha}
+              />
+              <TouchableOpacity onPress={() => setSecure(!secure)}>
+                <Ionicons
+                  name={secure ? 'eye-off' : 'eye'}
+                  size={20}
+                  color="#093C85"
+                  style={styles.icon}
+                />
+              </TouchableOpacity>
+            </View>
+
             {/* Checkbox */}
-        <View style={styles.checkboxContainer}>
-          <Checkbox
-            value={rememberMe}
-            onValueChange={setRememberMe}
-            color={rememberMe ? '#093C85' : undefined}
-          />
-          <Text style={styles.checkboxLabel}>Manter-me conectado</Text>
+            <View style={styles.checkboxContainer}>
+              <Checkbox
+                value={rememberMe}
+                onValueChange={setRememberMe}
+                color={rememberMe ? '#093C85' : undefined}
+              />
+              <Text style={styles.checkboxLabel}>Manter-me conectado</Text>
+            </View>
+
+            {/* Botão de Logar */}
+            <View>
+              <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
+                <Text style={styles.loginButtonText}>Entrar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
-        {/* Botão de Logar */}
-        <View>
-          <TouchableOpacity style={styles.loginButton} onPress={() => router.push('/tabs/filial')}>
-            <Text style={styles.loginButtonText}>Entrar</Text>
-          </TouchableOpacity>
+        <View style={styles.footer}>
+          <Text style={{ fontSize: 10 }}>Oversee V. 1.0 By Lemarq Software</Text>
         </View>
-        
-      </View>
-      
-    </View>
-    <View style={styles.footer}>
-        <Text style={{ fontSize: 10, }}>Oversee V. 1.0 By Lemarq Software</Text>
-        {/* <Image
-            source={require('../assets/images/logo_lemarq.png')}
-            style={{ }}
-          /> */}
-      </View>
-    </ScrollView>
-  </KeyboardAvoidingView>
-);};
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
 
 const styles = StyleSheet.create({
   scrollContainer: {

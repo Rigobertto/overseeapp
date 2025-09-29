@@ -1,44 +1,66 @@
 import SkeletonNotas from '@/app/components/loading';
+import api from '@/app/services/api';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    FlatList,
-    Keyboard,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  FlatList,
+  Keyboard,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { useFilial } from '../../contexts/filialContext';
 
-const notasMock = [
-  { id: '1', nome: 'Lemos e Marques', numero: '20250001', valor: 299.90 },
-  { id: '2', nome: 'Singularity LTDA', numero: '20250002', valor: 149.99 },
-  { id: '3', nome: 'Casa & Construção', numero: '20250003', valor: 899.00 },
-  { id: '4', nome: 'Supermercado Atacadão', numero: '20250004', valor: 1299.00 },
-  { id: '5', nome: 'Amazon LTDA', numero: '20250005', valor: 359.90 },
-];
 
 export default function SaidasScreen() {
 
+  const { filialSelecionada } = useFilial();
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
-  const [notas, setNotas] = useState(notasMock);
+  const [notas, setNotas] = useState<any[]>([]);
 
   useEffect(() => {
-    setTimeout(() => {
-      setLoading(false);
-    }, 2000);
-  }, []);
+    let ativo = true;
+
+    const fetchSaidas = async () => {
+      setLoading(true);
+      try {
+        const response = await api.get(`/nfsaidas/${filialSelecionada?.cd_fil}`);
+        if (!ativo) return;
+        const dadosFormatados = response.data.map((nfentrada: any) => ({
+          nr_nf: nfentrada.nr_nf,
+          cd_cli: nfentrada.cd_cli,
+          dt_emis: nfentrada.dt_emis,
+          dt_saida: nfentrada.dt_saida,
+          vl_nf: nfentrada.vl_nf,
+          nm_fil: nfentrada.nm_fil,
+          nm_cli: nfentrada.nm_cli,
+        }));
+        setNotas(dadosFormatados);
+      } catch (error) {
+        console.error("Erro ao buscar saidas", error);
+      } finally {
+        if (ativo) setLoading(false);
+      }
+    };
+
+    fetchSaidas();
+
+    return () => {
+      ativo = false;
+    };
+  }, [filialSelecionada]);
 
   if (loading) return <SkeletonNotas />;
 
   const filtrarNotas = () => {
-    const resultado = notasMock.filter(p =>
-      p.nome.toLowerCase().includes(busca.toLowerCase().trim())
+    const resultado = notas.filter(p =>
+      p.nm_forn.toLowerCase().includes(busca.toLowerCase().trim())
     );
     setNotas(resultado);
-    Keyboard.dismiss(); // fecha o teclado após buscar
+    Keyboard.dismiss();
   };
 
   return (
@@ -46,7 +68,7 @@ export default function SaidasScreen() {
       {/* Título */}
       <View style={{ marginBottom: 16, alignItems: 'center'}}>
         <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#093C85' }}>
-          Notas de Saídas
+          Notas de Entrada
         </Text>
       </View>
 
@@ -66,7 +88,7 @@ export default function SaidasScreen() {
       {/* Lista */}
       <FlatList
         data={notas}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => String(item.nr_nf)}
         renderItem={({ item }) => (
 
           <TouchableOpacity
@@ -74,23 +96,29 @@ export default function SaidasScreen() {
                 router.push({
                   pathname: '/tabs/menu/saida/itens/itensSaidas',
                   params: {
-                    numero: item.numero,
-                    nome: item.nome,
-                    valor: item.valor.toFixed(2),
+                    nr_nf: item.nr_nf,
+                    cd_cli: item.cd_cli,
+                    nm_cli: item.nm_cli,
                   },
                 });
               }}
           >
             <View style={styles.notasCard}>
-              <Text style={styles.nome}>{item.nome}</Text>
-              <Text style={styles.numero}>{item.numero}</Text>
-              <Text style={styles.valor}>R$ {item.valor.toFixed(2)}</Text>
+              <Text style={styles.nome}>{item.nm_cli} - {item.cd_cli}</Text>
+              <Text style={styles.numero}>N° {item.nr_nf} - {new Date(item.dt_emis).toLocaleDateString("pt-BR")}</Text>
+              <Text style={styles.valor}>
+                {Number(item.vl_nf).toLocaleString('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                })}
+              </Text>
+
             </View>
           </TouchableOpacity>
 
         )}
         ListEmptyComponent={
-          <Text style={styles.nenhumResultado}>Nenhuma nota de saída encontrada.</Text>
+          <Text style={styles.nenhumResultado}>Nenhuma nota de saida encontrada.</Text>
         }
         ItemSeparatorComponent={() => <View style={styles.separator} />}
       />

@@ -14,12 +14,6 @@ import {
   View,
 } from 'react-native';
 
-const produtosMock = [
-  { id: '1', nome: 'Moto G22', codigo: '20250001', quantidade: 10.5, barcode: '123456789012' },
-  { id: '2', nome: 'Iphone 16 Pro Max Plus Advanced Blaster Master', codigo: '20250002', quantidade: 15, barcode: '123456789012' },
-  { id: '3', nome: 'Teclado Multilaser', codigo: '20250003', quantidade: 80, barcode: '123456789012' },
-];
-
 export default function ItensRequisicoesScreen() {
   const { filialSelecionada } = useFilial();
   const { nr_mov, nm_custo } = useLocalSearchParams();
@@ -89,7 +83,7 @@ export default function ItensRequisicoesScreen() {
       <View style={styles.buscaContainer}>
         <TextInput
           style={styles.input}
-          placeholder="Buscar por código, nome ou barcode..."
+          placeholder="Código, nome ou barras..."
           value={busca}
           onChangeText={setBusca}
         />

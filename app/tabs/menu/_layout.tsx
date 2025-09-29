@@ -1,10 +1,24 @@
+import api from '@/app/services/api';
 import { Feather, FontAwesome5, Fontisto, MaterialIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DrawerContentScrollView, DrawerItem, DrawerItemList } from '@react-navigation/drawer';
 import { router } from 'expo-router';
 import { Drawer } from 'expo-router/drawer';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFilial } from '../contexts/filialContext';
+
+async function handleLogout() {
+  try {
+    await api.post('/logout'); // token já vai no header
+    await AsyncStorage.removeItem('authToken');
+    router.replace('/login');
+  } catch (error) {
+    console.error('Erro ao fazer logout:', error);
+    await AsyncStorage.removeItem('authToken');
+    router.replace('/login');
+  }
+}
 
 export default function DrawerLayout() {
   const { filialSelecionada } = useFilial();
@@ -36,11 +50,7 @@ export default function DrawerLayout() {
                 <Feather name="log-out" size={size} color={color} />
               )}
               labelStyle={{ fontSize: 16 }}
-              onPress={() => {
-                // Lógica de logout
-                // Aqui você pode limpar o token, contexto, etc.
-                router.replace('/login');
-              }}
+              onPress={handleLogout}
             />
 
               </DrawerContentScrollView>
@@ -66,84 +76,6 @@ export default function DrawerLayout() {
 
         }}   
       >
-          {/* <Drawer.Screen
-            name="entrada/entradas"
-            options={{
-              headerShown: true,
-              drawerLabel: 'Notas de Entrada',
-              headerTitle: () => (
-                <Text
-                  style={{
-                    color: '#fff',
-                    fontSize: 15,
-                    flexWrap: 'wrap',
-                    maxWidth: 250,
-                    fontWeight: 'bold',
-                  }}
-                  numberOfLines={2}
-                >
-                  {filialName}
-                </Text>
-                
-              ),
-              headerRight: () => (
-                <TouchableOpacity
-                  onPress={() => router.push('/tabs/filial')}
-                  style={{ marginRight: 15 }}
-                >
-                  <Fontisto name="arrow-return-left" size={20} color="#fff" />
-                </TouchableOpacity>
-              ),
-          
-              headerStyle: {
-                backgroundColor: '#093C85',
-              },
-
-              headerTintColor: '#fff',
-              drawerIcon: ({ color, size }) => (
-                <FontAwesome5 name="box-open" size={size} color={color} />
-              ),
-            }}
-          /> */}
-
-          {/*<Drawer.Screen name="saida/saidas" 
-            options={{
-              headerShown: true,
-              drawerLabel: 'Notas de Saída',
-              headerTitle: () => (
-                <Text
-                  style={{
-                    color: '#fff',
-                    fontSize: 15,
-                    flexWrap: 'wrap',
-                    maxWidth: 250,
-                    fontWeight: 'bold',
-                  }}
-                  numberOfLines={2}
-                >
-                  {filialName}
-                </Text>
-                
-              ),
-              headerRight: () => (
-                <TouchableOpacity
-                  onPress={() => router.push('/tabs/filial')}
-                  style={{ marginRight: 15 }}
-                >
-                  <Fontisto name="arrow-return-left" size={20} color="#fff" />
-                </TouchableOpacity>
-              ),
-          
-              headerStyle: {
-                backgroundColor: '#093C85',
-              },
-
-              headerTintColor: '#fff',
-              drawerIcon: ({ color, size }) => (
-                <FontAwesome5 name="box" size={size} color={color} />
-              ),
-            }}
-          />*/}
 
           <Drawer.Screen
             name="entrada"
@@ -178,45 +110,6 @@ export default function DrawerLayout() {
             }}
           />
 
-          {/* <Drawer.Screen name="requisicao/requisicoes" 
-            options={{
-              headerShown: true,
-              drawerLabel: 'Requisições',
-              headerTitle: () => (
-                <Text
-                  style={{
-                    color: '#fff',
-                    fontSize: 15,
-                    flexWrap: 'wrap',
-                    maxWidth: 250,
-                    fontWeight: 'bold',
-                  }}
-                  numberOfLines={2}
-                >
-                  {filialName}
-                </Text>
-                
-              ),
-              headerRight: () => (
-                <TouchableOpacity
-                  onPress={() => router.push('/tabs/filial')}
-                  style={{ marginRight: 15 }}
-                >
-                  <Fontisto name="arrow-return-left" size={20} color="#fff" />
-                </TouchableOpacity>
-              ),
-          
-              headerStyle: {
-                backgroundColor: '#093C85',
-              },
-
-              headerTintColor: '#fff',
-              drawerIcon: ({ color, size }) => (
-                <FontAwesome5 name="toolbox" size={size} color={color} />
-              ),
-            }}
-          /> */}
-
           <Drawer.Screen name="suporte/suporte" 
             options={{
               headerShown: true,
@@ -227,7 +120,7 @@ export default function DrawerLayout() {
                     color: '#fff',
                     fontSize: 15,
                     flexWrap: 'wrap',
-                    maxWidth: 250,
+                    maxWidth: 240,
                     fontWeight: 'bold',
                   }}
                   numberOfLines={2}
@@ -293,37 +186,6 @@ export default function DrawerLayout() {
               swipeEnabled: false, // Habilita o gesto de voltar
             }}
           />
-
-          {/* <Drawer.Screen
-            name="saida/itens"
-            
-            options={{
-              drawerItemStyle: { display: 'none' }, // Oculta do Drawer
-              //headerShown: false, // também esconde o header
-              headerTitle: 'Itens da Nota de Saída',
-               headerLeft: () => (
-                <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 15, marginRight: 10 }}>
-                  <Feather name="arrow-left" size={24} color="#fff" />
-                </TouchableOpacity>
-              ),
-              headerStyle: {
-                backgroundColor: '#093C85',
-              },
-              headerTintColor: '#fff',
-              swipeEnabled: false, // Habilita o gesto de voltar
-
-              headerShown: false,
-            }}
-          /> */}
-
-          {/* <Drawer.Screen
-            //name="saida/itens"
-            // options={{
-            //   drawerItemStyle: { display: 'none' }, // Oculta do menu
-            //   headerShown: false, // Desativa o header do Drawer
-            // }}
-            
-          /> */}
 
 
       </Drawer>

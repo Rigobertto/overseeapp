@@ -10,35 +10,55 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-
-const notasMock = [
-  { id: '1', nome: 'Lemos e Marques', numero: '20250001', valor: 299.90 },
-  { id: '2', nome: 'Singularity LTDA', numero: '20250002', valor: 149.99 },
-  { id: '3', nome: 'Casa & Construção', numero: '20250003', valor: 899.00 },
-  { id: '4', nome: 'Supermercado Atacadão', numero: '20250004', valor: 1299.00 },
-  { id: '5', nome: 'Amazon LTDA', numero: '20250005', valor: 359.90 },
-];
+import api from '../../../services/api';
+import { useFilial } from '../../contexts/filialContext';
 
 export default function EntradasScreen() {
-
+  const { filialSelecionada } = useFilial();
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
-  const [notas, setNotas] = useState(notasMock);
+  const [notas, setNotas] = useState<any[]>([]);
 
   useEffect(() => {
-    setTimeout(() => {
-      setLoading(false);
-    }, 2000);
-  }, []);
+    let ativo = true;
+
+    const fetchEntradas = async () => {
+      setLoading(true);
+      try {
+        const response = await api.get(`/nfentradas/${filialSelecionada?.cd_fil}`);
+        if (!ativo) return;
+        const dadosFormatados = response.data.map((nfentrada: any) => ({
+          nr_nfent: nfentrada.nr_nfent,
+          cd_forn: nfentrada.cd_forn,
+          dt_emis: nfentrada.dt_emis,
+          vl_nota: nfentrada.vl_nota,
+          nm_fil: nfentrada.nm_fil,
+          nm_forn: nfentrada.nm_forn,
+        }));
+        setNotas(dadosFormatados);
+      } catch (error) {
+        console.error("Erro ao buscar entradas", error);
+      } finally {
+        if (ativo) setLoading(false);
+      }
+    };
+
+    fetchEntradas();
+
+    return () => {
+      ativo = false;
+    };
+  }, [filialSelecionada]);
+
 
   if (loading) return <SkeletonNotas />;
 
   const filtrarNotas = () => {
-    const resultado = notasMock.filter(p =>
-      p.nome.toLowerCase().includes(busca.toLowerCase().trim())
+    const resultado = notas.filter(p =>
+      p.nm_forn.toLowerCase().includes(busca.toLowerCase().trim())
     );
     setNotas(resultado);
-    Keyboard.dismiss(); // fecha o teclado após buscar
+    Keyboard.dismiss();
   };
 
   return (
@@ -66,7 +86,7 @@ export default function EntradasScreen() {
       {/* Lista */}
       <FlatList
         data={notas}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => String(item.nr_nfent)}
         renderItem={({ item }) => (
 
           <TouchableOpacity
@@ -74,17 +94,23 @@ export default function EntradasScreen() {
                 router.push({
                   pathname: '/tabs/menu/entrada/itens/itensEntradas',
                   params: {
-                    numero: item.numero,
-                    nome: item.nome,
-                    valor: item.valor.toFixed(2),
+                    nr_nfent: item.nr_nfent,
+                    cd_forn: item.cd_forn,
+                    nm_forn: item.nm_forn,
                   },
                 });
               }}
           >
             <View style={styles.notasCard}>
-              <Text style={styles.nome}>{item.nome}</Text>
-              <Text style={styles.numero}>{item.numero}</Text>
-              <Text style={styles.valor}>R$ {item.valor.toFixed(2)}</Text>
+              <Text style={styles.nome}>{item.nm_forn} - {item.cd_forn}</Text>
+              <Text style={styles.numero}>{new Date(item.dt_emis).toLocaleDateString("pt-BR")}</Text>
+              <Text style={styles.valor}>
+                {Number(item.vl_nota).toLocaleString('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                })}
+              </Text>
+
             </View>
           </TouchableOpacity>
 
