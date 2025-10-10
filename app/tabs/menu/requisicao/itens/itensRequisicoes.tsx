@@ -3,10 +3,12 @@ import api from '@/app/services/api';
 import { useFilial } from '@/app/tabs/contexts/filialContext';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   FlatList,
   Keyboard,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -14,56 +16,112 @@ import {
   View,
 } from 'react-native';
 
+import ItemCheckModal, { ItemRequisicao } from '@/app/tabs/menu/requisicao/itens/checagemItensRequisicoes';
+
+type ItemRequisicaoAPI = {
+  id: number;
+  nm_mat: string;
+  cd_mat: string;
+  qt_nota: number;
+  cd_gtin?: string | null;
+  sn_check?: number | string; // 0/1 do backend (se vier)
+};
+
 export default function ItensRequisicoesScreen() {
-  const { filialSelecionada } = useFilial();
-  const { nr_mov, nm_custo } = useLocalSearchParams();
+  const { filialSelecionada } = useFilial(); // { cd_fil: '070', ... }
+  const { nr_mov, nm_custo } = useLocalSearchParams<{ nr_mov: string; nm_custo: string }>();
+
   const [busca, setBusca] = useState('');
-  const [notas, setNotas] = useState<any[]>([]);
-  const [notasFiltradas, setNotasFiltradas] = useState<any[]>([]);
+  const [itens, setItens] = useState<(ItemRequisicao & { barcode?: string; sn_check?: 0 | 1 })[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Modal
+  const [modalVisivel, setModalVisivel] = useState(false);
+  const [itemSelecionado, setItemSelecionado] = useState<ItemRequisicao & { barcode?: string; sn_check?: 0 | 1 } | null>(null);
+
+  // Set com ids checados (p/ badge “CHECADO”)
+  const itensChecados = useMemo(() => {
+    const s = new Set<number>();
+    itens.forEach((i) => {
+      if (Number(i.sn_check) === 1) s.add(i.id);
+    });
+    return s;
+  }, [itens]);
+
+  const carregarItens = async () => {
+    if (!filialSelecionada?.cd_fil || !nr_mov) return;
+    const url = `/requisicoes/itens?cd_fil=${filialSelecionada.cd_fil}&nr_mov=${nr_mov}`;
+    try {
+      setLoading(true);
+      const response = await api.get<ItemRequisicaoAPI[]>(url);
+      const dados = response.data.map((r) => ({
+        id: r.id,
+        nome: r.nm_mat,
+        codigo: r.cd_mat,
+        quantidade: r.qt_nota,
+        barcode: r.cd_gtin ?? undefined,
+        sn_check: (typeof r.sn_check === 'string' ? parseInt(r.sn_check, 10) : r.sn_check) as 0 | 1 | undefined,
+      }));
+      setItens(dados);
+    } catch (error) {
+      console.error('Erro ao buscar itens em: ' + url, error);
+      Alert.alert('Erro', 'Não foi possível carregar os itens da requisição.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchItensRequisicao = async () => {
-      const url = `/requisicoes/itens/?cd_fil=${filialSelecionada?.cd_fil}&nr_mov=${nr_mov}`;
-      try {
-        const response = await api.get(url);
-        const dadosFormatados = response.data.map((item: any) => ({
-          id: item.id,
-          nome: item.nm_mat,
-          codigo: item.cd_mat,
-          quantidade: item.qt_nota,
-          barcode: item.cd_gtin,
-        }));
-        setNotas(dadosFormatados);
-        setNotasFiltradas(dadosFormatados); // inicializa também a lista exibida
-      } catch (error) {
-        console.error("Erro ao buscar itens em: " + url, error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    carregarItens();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filialSelecionada?.cd_fil, nr_mov]);
 
-    if (filialSelecionada && nr_mov) {
-      fetchItensRequisicao();
-    }
-  }, [filialSelecionada, nr_mov]);
-
-  const filtrarProdutos = () => {
+  // Filtro local
+  const itensFiltrados = useMemo(() => {
     const termo = busca.toLowerCase().trim();
-
-    if (!termo) {
-      setNotasFiltradas(notas); // se busca estiver vazia, volta lista completa
-      return;
-    }
-
-    const resultado = notas.filter(p =>
+    if (!termo) return itens;
+    return itens.filter((p) =>
       p.nome.toLowerCase().includes(termo) ||
       p.codigo.toLowerCase().includes(termo) ||
-      p.barcode.toLowerCase().includes(termo)
+      (p.barcode ?? '').toLowerCase().includes(termo),
     );
+  }, [busca, itens]);
 
-    setNotasFiltradas(resultado);
+  const filtrarProdutos = () => {
     Keyboard.dismiss();
+    // (usamos useMemo; nada a fazer aqui além de fechar o teclado)
+  };
+
+  const abrirModal = (item: any) => {
+    setItemSelecionado(item);
+    setModalVisivel(true);
+  };
+
+  const fecharModal = () => {
+    setModalVisivel(false);
+    setItemSelecionado(null);
+  };
+
+  // callback chamado pelo modal após PATCH bem-sucedido
+  const onUpdated = (resp: any) => {
+    // resp.data pode trazer o item atualizado; se trouxer, atualize pela resposta:
+    const atualizado = resp?.data;
+    if (atualizado?.id) {
+      setItens((prev) =>
+        prev.map((n) =>
+          n.id === atualizado.id
+            ? {
+                ...n,
+                quantidade: atualizado.qt_check ?? n.quantidade, // ou calcule restante se fizer sentido
+                sn_check: Number(atualizado.sn_check) as 0 | 1,
+              }
+            : n,
+        ),
+      );
+    } else {
+      // fallback: apenas refetch
+      carregarItens();
+    }
   };
 
   if (loading) {
@@ -73,19 +131,21 @@ export default function ItensRequisicoesScreen() {
   return (
     <View style={styles.container}>
       {/* Título */}
-      <View style={{ marginBottom: 16, alignItems: 'center'}}>
+      <View style={{ marginBottom: 16, alignItems: 'center' }}>
         <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#093C85' }}>
           {nm_custo} - {nr_mov}
         </Text>
       </View>
-      
-      {/* Campo de Busca */}
+
+      {/* Busca */}
       <View style={styles.buscaContainer}>
         <TextInput
           style={styles.input}
           placeholder="Código, nome ou barras..."
           value={busca}
           onChangeText={setBusca}
+          returnKeyType="search"
+          onSubmitEditing={filtrarProdutos}
         />
         <TouchableOpacity style={styles.botao} onPress={filtrarProdutos}>
           <Text style={styles.textoBotao}>Buscar</Text>
@@ -94,94 +154,63 @@ export default function ItensRequisicoesScreen() {
 
       {/* Lista */}
       <FlatList
-        data={notasFiltradas}
+        data={itensFiltrados}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => 
-          <View style={styles.produtoCard}>
-            <Text style={styles.nome}>{item.nome} - {item.codigo}</Text>
-            <Text style={styles.quantidade}>Quantidade: {item.quantidade}</Text>
+        renderItem={({ item }) => {
+          const checado = itensChecados.has(item.id);
+          return (
+            <Pressable onPress={() => abrirModal(item)}>
+              <View style={styles.produtoCard}>
+                <Text style={styles.nome}>
+                  {item.nome} - {item.codigo}
+                </Text>
 
-            <View style={styles.codigo}>
-              <FontAwesome6 name="barcode" size={20} color="black" />
-              <Text style={styles.barcode}>{item.barcode}</Text>           
-            </View>
-          </View>
-        }
-        ListEmptyComponent={
-          <Text style={styles.nenhumResultado}>Nenhum material encontrado.</Text>
-        }
+                <Text style={styles.quantidade}>Quantidade: {item.quantidade}</Text>
+
+                <View style={styles.codigo}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <FontAwesome6 name="barcode" size={20} color="black" />
+                    <Text style={[styles.barcode, checado && styles.barcodeVerde]}>{item.barcode || '—'}</Text>
+                  </View>
+                  {checado && <Text style={styles.etiquetaChecado}>CHECADO</Text>}
+                </View>
+              </View>
+            </Pressable>
+          );
+        }}
+        ListEmptyComponent={<Text style={styles.nenhumResultado}>Nenhum material encontrado.</Text>}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
+      />
+
+      {/* Modal de checagem */}
+      <ItemCheckModal
+        visible={modalVisivel}
+        item={itemSelecionado ?? undefined}
+        nrMov={String(nr_mov)}               //  passa o nr_mov pro modal
+        onCancel={fecharModal}
+        onUpdated={onUpdated}               //  para atualizar a lista após OK
       />
     </View>
   );
 }
 
-
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: '#fff' },
 
   buscaContainer: { flexDirection: 'row', marginBottom: 16 },
-  input: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 10,
-    borderRadius: 8,
-  },
-  botao: {
-    backgroundColor: '#093C85',
-    paddingHorizontal: 16,
-    marginLeft: 8,
-    justifyContent: 'center',
-    borderRadius: 8,
-  },
-  textoBotao: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
+  input: { flex: 1, borderWidth: 1, borderColor: '#ccc', padding: 10, borderRadius: 8 },
+  botao: { backgroundColor: '#093C85', paddingHorizontal: 16, marginLeft: 8, justifyContent: 'center', borderRadius: 8 },
+  textoBotao: { color: '#fff', fontWeight: 'bold' },
 
-  produtoCard: {
-    backgroundColor: '#f9f9f9',
-    borderRadius: 10,
-    padding: 10,
-    elevation: 2,
-  },
-  nome: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#093C85',
-  },
-  codigo: {
-    justifyContent: 'space-between',
-    flexDirection: 'row',
-    marginTop: 8,
-    fontSize: 14,
-    color: '#444',
-  },
+  produtoCard: { backgroundColor: '#f9f9f9', borderRadius: 10, padding: 10, elevation: 2 },
+  nome: { fontSize: 16, fontWeight: 'bold', color: '#093C85' },
+  codigo: { justifyContent: 'space-between', flexDirection: 'row', marginTop: 8, alignItems: 'center' },
 
-  barcode: {
-    backgroundColor: '#F8AD6D',
-    borderRadius: 8,
-    padding: 3,
-  },
+  barcode: { marginLeft: 8, backgroundColor: '#F8AD6D', borderRadius: 8, paddingVertical: 3, paddingHorizontal: 6, overflow: 'hidden' },
+  barcodeVerde: { backgroundColor: '#0A7C36', color: '#fff' },
+  etiquetaChecado: { backgroundColor: '#0A7C36', color: '#fff', fontSize: 12, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 8, overflow: 'hidden' },
 
-  barcodeVerde: {
-    backgroundColor: '#0A7C36', // verde
-    borderRadius: 8,
-    padding: 3,
-  },
-
-  quantidade: {
-    marginTop: 4,
-    fontSize: 15,
-    fontWeight: '600',
-    //color: '#0A7C36',
-  },
+  quantidade: { marginTop: 4, fontSize: 15, fontWeight: '600' },
   separator: { height: 12 },
-  nenhumResultado: {
-    textAlign: 'center',
-    marginTop: 20,
-    fontSize: 16,
-    color: '#666',
-  },
+  nenhumResultado: { textAlign: 'center', marginTop: 20, fontSize: 16, color: '#666' },
 });
