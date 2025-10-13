@@ -39,7 +39,6 @@ export default function ItensRequisicoesScreen() {
   const [modalVisivel, setModalVisivel] = useState(false);
   const [itemSelecionado, setItemSelecionado] = useState<ItemRequisicao & { barcode?: string; sn_check?: 0 | 1 } | null>(null);
 
-  // Set com ids checados (p/ badge “CHECADO”)
   const itensChecados = useMemo(() => {
     const s = new Set<number>();
     itens.forEach((i) => {
@@ -73,10 +72,9 @@ export default function ItensRequisicoesScreen() {
 
   useEffect(() => {
     carregarItens();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, [filialSelecionada?.cd_fil, nr_mov]);
 
-  // Filtro local
   const itensFiltrados = useMemo(() => {
     const termo = busca.toLowerCase().trim();
     if (!termo) return itens;
@@ -89,10 +87,15 @@ export default function ItensRequisicoesScreen() {
 
   const filtrarProdutos = () => {
     Keyboard.dismiss();
-    // (usamos useMemo; nada a fazer aqui além de fechar o teclado)
   };
 
   const abrirModal = (item: any) => {
+    // Se o item já estiver checado, bloqueia a abertura do modal
+    if (Number(item.sn_check) === 1) {
+      Alert.alert('Item já checado', 'Este item já foi conferido e não pode ser reaberto.');
+      return; // sai da função sem abrir o modal
+    }
+
     setItemSelecionado(item);
     setModalVisivel(true);
   };
@@ -102,9 +105,9 @@ export default function ItensRequisicoesScreen() {
     setItemSelecionado(null);
   };
 
-  // callback chamado pelo modal após PATCH bem-sucedido
+  
   const onUpdated = (resp: any) => {
-    // resp.data pode trazer o item atualizado; se trouxer, atualize pela resposta:
+    
     const atualizado = resp?.data;
     if (atualizado?.id) {
       setItens((prev) =>
@@ -112,14 +115,14 @@ export default function ItensRequisicoesScreen() {
           n.id === atualizado.id
             ? {
                 ...n,
-                quantidade: atualizado.qt_check ?? n.quantidade, // ou calcule restante se fizer sentido
+                quantidade: atualizado.qt_check ?? n.quantidade,
                 sn_check: Number(atualizado.sn_check) as 0 | 1,
               }
             : n,
         ),
       );
     } else {
-      // fallback: apenas refetch
+      
       carregarItens();
     }
   };
@@ -186,9 +189,9 @@ export default function ItensRequisicoesScreen() {
       <ItemCheckModal
         visible={modalVisivel}
         item={itemSelecionado ?? undefined}
-        nrMov={String(nr_mov)}               //  passa o nr_mov pro modal
+        nrMov={String(nr_mov)}
         onCancel={fecharModal}
-        onUpdated={onUpdated}               //  para atualizar a lista após OK
+        onUpdated={onUpdated}
       />
     </View>
   );

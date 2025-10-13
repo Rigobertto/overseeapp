@@ -1,10 +1,14 @@
 import SkeletonNotas from '@/app/components/loading';
 import api from '@/app/services/api';
+import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Keyboard,
+  Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -13,62 +17,71 @@ import {
 } from 'react-native';
 import { useFilial } from '../../contexts/filialContext';
 
-
 export default function SaidasScreen() {
-
   const { filialSelecionada } = useFilial();
+
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [busca, setBusca] = useState('');
   const [notas, setNotas] = useState<any[]>([]);
 
-  useEffect(() => {
+  const fetchSaidas = useCallback(async () => {
     let ativo = true;
-
-    const fetchSaidas = async () => {
-      setLoading(true);
-      try {
-        const response = await api.get(`/nfsaidas/${filialSelecionada?.cd_fil}`);
-        if (!ativo) return;
-        const dadosFormatados = response.data.map((nfentrada: any) => ({
-          nr_nf: nfentrada.nr_nf,
-          cd_cli: nfentrada.cd_cli,
-          dt_emis: nfentrada.dt_emis,
-          dt_saida: nfentrada.dt_saida,
-          vl_nf: nfentrada.vl_nf,
-          nm_fil: nfentrada.nm_fil,
-          nm_cli: nfentrada.nm_cli,
-        }));
-        setNotas(dadosFormatados);
-      } catch (error) {
-        console.error("Erro ao buscar saidas", error);
-      } finally {
-        if (ativo) setLoading(false);
+    setLoading(true);
+    try {
+      const response = await api.get(`/nfsaidas/${filialSelecionada?.cd_fil}`);
+      if (!ativo) return;
+      const dadosFormatados = response.data.map((nfentrada: any) => ({
+        nr_nf: nfentrada.nr_nf,
+        cd_cli: nfentrada.cd_cli,
+        dt_emis: nfentrada.dt_emis,
+        dt_saida: nfentrada.dt_saida,
+        vl_nf: nfentrada.vl_nf,
+        nm_fil: nfentrada.nm_fil,
+        nm_cli: nfentrada.nm_cli,
+      }));
+      setNotas(dadosFormatados);
+    } catch (error) {
+      console.error('Erro ao buscar saidas', error);
+    } finally {
+      if (ativo) {
+        setLoading(false);
+        setRefreshing(false);
       }
-    };
-
-    fetchSaidas();
-
+    }
     return () => {
       ativo = false;
     };
   }, [filialSelecionada]);
 
-  if (loading) return <SkeletonNotas />;
+  useEffect(() => {
+    fetchSaidas();
+  }, [filialSelecionada, fetchSaidas]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchSaidas();
+  }, [fetchSaidas]);
+
+  // skeleton apenas no primeiro load
+  if (loading && !refreshing) return <SkeletonNotas />;
 
   const filtrarNotas = () => {
-    const resultado = notas.filter(p =>
-      p.nm_forn.toLowerCase().includes(busca.toLowerCase().trim())
+    const resultado = notas.filter((p) =>
+      p.nm_cli?.toLowerCase().includes(busca.toLowerCase().trim())
     );
     setNotas(resultado);
     Keyboard.dismiss();
   };
 
+  const isBusy = loading || refreshing;
+
   return (
     <View style={styles.container}>
       {/* Título */}
-      <View style={{ marginBottom: 16, alignItems: 'center'}}>
+      <View style={{ marginBottom: 16, alignItems: 'center' }}>
         <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#093C85' }}>
-          Notas de Entrada
+          Notas de Saída
         </Text>
       </View>
 
@@ -79,8 +92,9 @@ export default function SaidasScreen() {
           placeholder="Buscar notas..."
           value={busca}
           onChangeText={setBusca}
+          editable={!isBusy}
         />
-        <TouchableOpacity style={styles.botao} onPress={filtrarNotas}>
+        <TouchableOpacity style={styles.botao} onPress={filtrarNotas} disabled={isBusy}>
           <Text style={styles.textoBotao}>Buscar</Text>
         </TouchableOpacity>
       </View>
@@ -89,39 +103,64 @@ export default function SaidasScreen() {
       <FlatList
         data={notas}
         keyExtractor={(item) => String(item.nr_nf)}
+        scrollEnabled={!isBusy}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#093C85']}
+            tintColor="#093C85"
+          />
+        }
         renderItem={({ item }) => (
-
           <TouchableOpacity
-              onPress={() => {
-                router.push({
-                  pathname: '/tabs/menu/saida/itens/itensSaidas',
-                  params: {
-                    nr_nf: item.nr_nf,
-                    cd_cli: item.cd_cli,
-                    nm_cli: item.nm_cli,
-                  },
-                });
-              }}
+            disabled={isBusy}
+            activeOpacity={isBusy ? 1 : 0.7}
+            onPress={() => {
+              router.push({
+                pathname: '/tabs/menu/saida/itens/itensSaidas',
+                params: {
+                  nr_nf: item.nr_nf,
+                  cd_cli: item.cd_cli,
+                  nm_cli: item.nm_cli,
+                },
+              });
+            }}
           >
             <View style={styles.notasCard}>
-              <Text style={styles.nome}>{item.nm_cli} - {item.cd_cli}</Text>
-              <Text style={styles.numero}>N° {item.nr_nf} - {new Date(item.dt_emis).toLocaleDateString("pt-BR")}</Text>
+              <Text style={styles.nome}>
+                {item.nm_cli} - {item.cd_cli}
+              </Text>
+              <Text style={styles.numero}>
+                N° {item.nr_nf} - {new Date(item.dt_emis).toLocaleDateString('pt-BR')}
+              </Text>
               <Text style={styles.valor}>
                 {Number(item.vl_nf).toLocaleString('pt-BR', {
                   style: 'currency',
                   currency: 'BRL',
                 })}
               </Text>
-
             </View>
           </TouchableOpacity>
-
         )}
         ListEmptyComponent={
           <Text style={styles.nenhumResultado}>Nenhuma nota de saida encontrada.</Text>
         }
         ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
+
+      {/* Desfoque + overlay que intercepta toques (apenas durante o refresh) */}
+      {refreshing && (
+        <>
+          <BlurView intensity={40} tint="dark" style={styles.blurOverlay} />
+          <Pressable style={styles.blocker} onPress={() => {}}>
+            <View style={styles.inlineLoader}>
+              <ActivityIndicator size="large" color="#093C85" />
+              <Text style={styles.inlineText}>Atualizando...</Text>
+            </View>
+          </Pressable>
+        </>
+      )}
     </View>
   );
 }
@@ -155,27 +194,41 @@ const styles = StyleSheet.create({
     padding: 10,
     elevation: 2,
   },
-  nome: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#093C85',
-  },
-  numero: {
-    marginTop: 4,
-    fontSize: 14,
-    color: '#444',
-  },
-  valor: {
-    marginTop: 8,
-    fontSize: 15,
-    fontWeight: '600',
-    //color: '#0A7C36',
-  },
+  nome: { fontSize: 16, fontWeight: 'bold', color: '#093C85' },
+  numero: { marginTop: 4, fontSize: 14, color: '#444' },
+  valor: { marginTop: 8, fontSize: 15, fontWeight: '600' },
+
   separator: { height: 12 },
   nenhumResultado: {
     textAlign: 'center',
     marginTop: 20,
     fontSize: 16,
     color: '#666',
+  },
+
+  // Desfoque ocupando a tela toda (abaixo do Pressable)
+  blurOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 19,
+  },
+
+  // Overlay bloqueador (acima do blur) + loader
+  blocker: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+    backgroundColor: 'rgba(255,255,255,0.001)', // transparente, só para capturar toques
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  inlineLoader: {
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+  },
+  inlineText: {
+    marginTop: 8,
+    fontWeight: '600',
+    color: '#093C85',
+    textAlign: 'center',
   },
 });

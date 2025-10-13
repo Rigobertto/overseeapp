@@ -4,25 +4,25 @@ import { useUsuario } from '@/app/tabs/contexts/usuarioContext';
 import React, { useEffect, useState } from 'react';
 import { Alert, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-export type ItemRequisicao = {
+export type ItemSaida = {
   id: number;
   nome: string;
   codigo: string;
-  quantidade: number; // disponível
+  quantidade: number;
 };
 
 type Props = {
   visible: boolean;
-  item?: ItemRequisicao | null;
-  nrMov: string;
+  item?: ItemSaida | null;
+  nrNF: string;
   onCancel: () => void;
-  onUpdated?: (resp: any) => void; 
+  onUpdated?: (resp: any) => void;
 };
 
-export default function ItemCheckModal({ visible, item, nrMov, onCancel, onUpdated }: Props) {
+export default function ItemCheckModal({ visible, item, nrNF, onCancel, onUpdated }: Props) {
   const [quantidadeChecada, setQuantidadeChecada] = useState('1');
-  const { filialSelecionada } = useFilial();
-  const { usuarioSelecionada } = useUsuario();
+  const { filialSelecionada } = useFilial();   // ex.: "070"
+  const { usuarioSelecionada } = useUsuario(); // deve ter cd_usu (ex.: "008")
 
   useEffect(() => {
     if (visible) setQuantidadeChecada('1');
@@ -47,8 +47,8 @@ export default function ItemCheckModal({ visible, item, nrMov, onCancel, onUpdat
         Alert.alert('Ops', 'Item inválido.');
         return;
       }
-      if (!filialSelecionada || !nrMov) {
-        Alert.alert('Ops', 'Filial ou número da requisição não informados.');
+      if (!filialSelecionada || !nrNF) {
+        Alert.alert('Ops', 'Filial ou número da nota de saída não informados.');
         return;
       }
       const qtd = parseInt(quantidadeChecada || '0', 10);
@@ -57,19 +57,18 @@ export default function ItemCheckModal({ visible, item, nrMov, onCancel, onUpdat
         return;
       }
 
-      
       const body = {
         cd_fil: String(filialSelecionada.cd_fil), 
-        nr_mov: String(nrMov),
-        cd_usu_check: String(usuarioSelecionada?.cd_usu ?? ''),
+        nr_nf: String(nrNF),
+        cd_usu_check: String(usuarioSelecionada?.cd_usu ?? ''), 
         sn_check: qtd > 0 ? '1' : '0',
         qt_check: String(qtd),
         
       };
       console.log('Atualizando item', item.id, 'com', body);
 
-      const url = `/requisicoes/itens/${item.id}`;
-      const params = { cd_fil: String(filialSelecionada), nr_mov: String(nrMov) };
+      const url = `/nfsaidas/itens/${item.id}`;
+      //const params = { cd_fil: String(filialSelecionada), nr_nf: String(nrNF) };
       const resp = await api.patch(url, body);
 
 
