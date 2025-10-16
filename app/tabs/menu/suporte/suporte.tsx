@@ -2,9 +2,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function SuporteScreen() {
-  const email = "suporte@lemarq.com.br";
-  const telefone1 = "+55 (84) 99642-3546";
-  const telefone2 = "+55 (84) 98888-1122";
+  const email = "lemarq@lemarq.com.br";
+  const telefone1 = "+55 (84) 3316-3070";
+  const telefone2 = "+55 (84) 99637-8231";
 
   const handleEmail = () => {
     Linking.openURL(`mailto:${email}?subject=Suporte Oversee`);
@@ -17,7 +17,7 @@ export default function SuporteScreen() {
 
   return (
     <View style={styles.container}>
-      <Ionicons name="help-circle-outline" size={80} color="#093C85" style={styles.icon} />
+      
       <Text style={styles.title}>Central de Suporte</Text>
       <Text style={styles.subtitle}>Entre em contato com nossa equipe</Text>
 

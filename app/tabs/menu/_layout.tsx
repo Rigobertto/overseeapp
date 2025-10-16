@@ -5,7 +5,8 @@ import { DrawerContentScrollView, DrawerItem, DrawerItemList } from '@react-navi
 import { router } from 'expo-router';
 import { Drawer } from 'expo-router/drawer';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useRef } from 'react';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFilial } from '../contexts/filialContext';
 
 async function handleLogout() {
@@ -23,25 +24,52 @@ async function handleLogout() {
 export default function DrawerLayout() {
   const { filialSelecionada } = useFilial();
   const filialName = filialSelecionada
-  ? `Filial ${filialSelecionada.cd_fil} - ${filialSelecionada.nm_fil}`
-  : 'Menu';
+    ? `Filial ${filialSelecionada.cd_fil} - ${filialSelecionada.nm_fil}`
+    : 'Menu';
+
+  // Evita logout duplo
+  const loggingOutRef = useRef(false);
+  const confirmLogout = useCallback(() => {
+    if (loggingOutRef.current) return;
+    Alert.alert(
+      'Encerrar sessão',
+      'Deseja realmente sair e voltar para a tela de login?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sair',
+          style: 'destructive',
+          onPress: async () => {
+            if (loggingOutRef.current) return;
+            loggingOutRef.current = true;
+            try {
+              await handleLogout();
+            } finally {
+              loggingOutRef.current = false;
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  }, []);
 
   return (
-    <>  
-      <StatusBar  style="inverted" backgroundColor="transparent" translucent />
+    <>
+      <StatusBar style="inverted" backgroundColor="transparent" translucent />
 
       <Drawer
-          drawerContent={(props) => (
-            <DrawerContentScrollView {...props}>
+        drawerContent={(props) => (
+          <DrawerContentScrollView {...props}>
             {/* Título personalizado */}
-              <View style={styles.header}>
-                <Text style={styles.title}>Menu</Text>
-              </View>
+            <View style={styles.header}>
+              <Text style={styles.title}>Menu</Text>
+            </View>
 
             {/* Itens padrão do Drawer */}
-              <DrawerItemList {...props} />
+            <DrawerItemList {...props} />
 
-             {/* Item de logout manual */}
+            {/* Item de logout com confirmação */}
             <DrawerItem
               label="Encerrar Sessão"
               activeTintColor="#093C85"
@@ -50,144 +78,78 @@ export default function DrawerLayout() {
                 <Feather name="log-out" size={size} color={color} />
               )}
               labelStyle={{ fontSize: 16 }}
-              onPress={handleLogout}
+              onPress={() => {
+                props.navigation.closeDrawer(); // fecha o drawer primeiro
+                confirmLogout();                // abre o alerta de confirmação
+              }}
             />
-
-              </DrawerContentScrollView>
-          )}
-
-          screenOptions={{
-            drawerStyle: {
-              backgroundColor: '#f5f5f5',   // cor de fundo do drawer
-              width: 260,
-              //display: 'none',
-              
-            },
-            drawerActiveTintColor: '#093C85', // cor do item ativo
-            drawerInactiveTintColor: '#093C85',  // cor dos outros
-            drawerLabelStyle: {
-              fontSize: 16,
-            },
-            headerStyle: {
-              backgroundColor: '#093C85',  // fundo do header
-            },
-            headerTintColor: '#fff',        // cor dos textos do header
-            
-
-        }}   
+          </DrawerContentScrollView>
+        )}
+        screenOptions={{
+          drawerStyle: { backgroundColor: '#f5f5f5', width: 260 },
+          drawerActiveTintColor: '#093C85',
+          drawerInactiveTintColor: '#093C85',
+          drawerLabelStyle: { fontSize: 16 },
+          headerStyle: { backgroundColor: '#093C85' },
+          headerTintColor: '#fff',
+        }}
       >
+        <Drawer.Screen
+          name="entrada"
+          options={{
+            headerShown: false,
+            drawerLabel: 'Notas de Entrada',
+            drawerIcon: ({ color, size }) => <FontAwesome5 name="box-open" size={size} color={color} />,
+          }}
+        />
 
-          <Drawer.Screen
-            name="entrada"
-            options={{
-              headerShown: false, // IMPORTANTE! Isso impede o header do Drawer nas telas internas
-              drawerLabel: 'Notas de Entrada',
-              drawerIcon: ({ color, size }) => (
-                <FontAwesome5 name="box-open" size={size} color={color} />
-              ),
-            }}
-          />
+        <Drawer.Screen
+          name="saida"
+          options={{
+            headerShown: false,
+            drawerLabel: 'Notas de Saída',
+            drawerIcon: ({ color, size }) => <FontAwesome5 name="box" size={size} color={color} />,
+          }}
+        />
 
-          <Drawer.Screen
-            name="saida"
-            options={{
-              headerShown: false, // IMPORTANTE! Isso impede o header do Drawer nas telas internas
-              drawerLabel: 'Notas de Saída',
-              drawerIcon: ({ color, size }) => (
-                <FontAwesome5 name="box" size={size} color={color} />
-              ),
-            }}
-          />
+        <Drawer.Screen
+          name="requisicao"
+          options={{
+            headerShown: false,
+            drawerLabel: 'Requisições',
+            drawerIcon: ({ color, size }) => <FontAwesome5 name="toolbox" size={size} color={color} />,
+          }}
+        />
 
-          <Drawer.Screen
-            name="requisicao"
-            options={{
-              headerShown: false, // IMPORTANTE! Isso impede o header do Drawer nas telas internas
-              drawerLabel: 'Requisições',
-              drawerIcon: ({ color, size }) => (
-                <FontAwesome5 name="toolbox" size={size} color={color} />
-              ),
-            }}
-          />
-
-          <Drawer.Screen name="suporte/suporte" 
-            options={{
-              headerShown: true,
-              drawerLabel: 'Contate o Suporte',
-              headerTitle: () => (
-                <Text
-                  style={{
-                    color: '#fff',
-                    fontSize: 15,
-                    flexWrap: 'wrap',
-                    maxWidth: 240,
-                    fontWeight: 'bold',
-                  }}
-                  numberOfLines={2}
-                >
-                  {filialName}
-                </Text>
-                
-              ),
-              headerRight: () => (
-                <TouchableOpacity
-                  onPress={() => router.push('/tabs/filial')}
-                  style={{ marginRight: 15 }}
-                >
-                  <Fontisto name="arrow-return-left" size={20} color="#fff" />
-                </TouchableOpacity>
-              ),
-          
-              headerStyle: {
-                backgroundColor: '#093C85',
-              },
-
-              headerTintColor: '#fff',
-              drawerIcon: ({ color, size }) => (
-                <MaterialIcons name="support-agent" size={size} color={color} />
-              ),
-            }}
-          />
-
-          <Drawer.Screen
-            name="entrada/itensEntradas"
-            options={{
-              drawerItemStyle: { display: 'none' }, // Oculta do Drawer
-              //headerShown: false, // também esconde o header
-              headerTitle: 'Itens da Nota de Entrada',
-               headerLeft: () => (
-                <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 15, marginRight: 10 }}>
-                  <Feather name="arrow-left" size={24} color="#fff" />
-                </TouchableOpacity>
-              ),
-              headerStyle: {
-                backgroundColor: '#093C85',
-              },
-              headerTintColor: '#fff',
-              swipeEnabled: false, // Habilita o gesto de voltar
-            }}
-          />
-
-          <Drawer.Screen
-            name="requisicao/itensRequisicoes"
-            options={{
-              drawerItemStyle: { display: 'none' }, // Oculta do Drawer
-              //headerShown: false, // também esconde o header
-              headerTitle: 'Itens da Requisição',
-               headerLeft: () => (
-                <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 15, marginRight: 10 }}>
-                  <Feather name="arrow-left" size={24} color="#fff" />
-                </TouchableOpacity>
-              ),
-              headerStyle: {
-                backgroundColor: '#093C85',
-              },
-              headerTintColor: '#fff',
-              swipeEnabled: false, // Habilita o gesto de voltar
-            }}
-          />
-
-
+        <Drawer.Screen
+          name="suporte/suporte"
+          options={{
+            headerShown: true,
+            drawerLabel: 'Contate o Suporte',
+            headerTitle: () => (
+              <Text
+                style={{
+                  color: '#fff',
+                  fontSize: 15,
+                  flexWrap: 'wrap',
+                  maxWidth: 240,
+                  fontWeight: 'bold',
+                }}
+                numberOfLines={2}
+              >
+                {filialName}
+              </Text>
+            ),
+            headerRight: () => (
+              <TouchableOpacity onPress={() => router.push('/tabs/filial')} style={{ marginRight: 15 }}>
+                <Fontisto name="arrow-return-left" size={20} color="#fff" />
+              </TouchableOpacity>
+            ),
+            headerStyle: { backgroundColor: '#093C85' },
+            headerTintColor: '#fff',
+            drawerIcon: ({ color, size }) => <MaterialIcons name="support-agent" size={size} color={color} />,
+          }}
+        />
       </Drawer>
     </>
   );

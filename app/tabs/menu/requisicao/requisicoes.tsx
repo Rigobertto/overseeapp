@@ -1,7 +1,7 @@
 import SkeletonNotas from '@/app/components/loading';
 import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -24,6 +24,18 @@ export default function RequisicoesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [busca, setBusca] = useState('');
   const [notas, setNotas] = useState<any[]>([]);
+
+  // --- LOCK anti-duplo clique ---
+  const [navLocked, setNavLocked] = useState(false);
+  const navLockRef = useRef(false);
+  const lockNavigation = useCallback(() => {
+    navLockRef.current = true;
+    setNavLocked(true);
+    setTimeout(() => {
+      navLockRef.current = false;
+      setNavLocked(false);
+    }, 800); // ajuste se quiser
+  }, []);
 
   const fetchRequisicoes = useCallback(async () => {
     setLoading(true);
@@ -54,9 +66,6 @@ export default function RequisicoesScreen() {
     fetchRequisicoes();
   }, [fetchRequisicoes]);
 
-  // skeleton apenas no primeiro load
-  if (loading && !refreshing) return <SkeletonNotas />;
-
   const filtrarNotas = () => {
     const resultado = notas.filter(p =>
       p.nm_custo.toLowerCase().includes(busca.toLowerCase().trim())
@@ -66,6 +75,21 @@ export default function RequisicoesScreen() {
   };
 
   const isBusy = loading || refreshing;
+  const showSkeleton = loading && !refreshing;
+
+  // função segura para navegar (respeita busy/lock)
+  const abrirItens = useCallback((item: any) => {
+    if (isBusy || navLockRef.current) return;
+    lockNavigation();
+    router.push({
+      pathname: '/tabs/menu/requisicao/itens/itensRequisicoes',
+      params: {
+        nr_mov: String(item.nr_mov),
+        dt_mov: String(item.dt_mov),
+        nm_custo: String(item.nm_custo),
+      },
+    });
+  }, [isBusy, lockNavigation]);
 
   return (
     <View style={styles.container}>
@@ -83,53 +107,54 @@ export default function RequisicoesScreen() {
           placeholder="Buscar por centro de custo..."
           value={busca}
           onChangeText={setBusca}
-          editable={!isBusy}
+          editable={!isBusy && !navLocked}
         />
-        <TouchableOpacity style={styles.botao} onPress={filtrarNotas} disabled={isBusy}>
+        <TouchableOpacity
+          style={styles.botao}
+          onPress={filtrarNotas}
+          disabled={isBusy || navLocked}
+        >
           <Text style={styles.textoBotao}>Buscar</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Lista */}
-      <FlatList
-        data={notas}
-        keyExtractor={(item) => String(item.id)}
-        scrollEnabled={!isBusy}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#093C85']}
-            tintColor="#093C85"
-          />
-        }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            disabled={isBusy}
-            activeOpacity={isBusy ? 1 : 0.7}
-            onPress={() => {
-              router.push({
-                pathname: '/tabs/menu/requisicao/itens/itensRequisicoes',
-                params: {
-                  nr_mov: item.nr_mov,
-                  dt_mov: item.dt_mov,
-                  nm_custo: item.nm_custo,
-                },
-              });
-            }}
-          >
-            <View style={styles.notasCard}>
-              <Text style={styles.nome}>{item.nm_custo}</Text>
-              <Text style={styles.numero}>N° {item.nr_mov}</Text>
-              <Text style={styles.valor}>{new Date(item.dt_mov).toLocaleDateString('pt-BR')}</Text>
-            </View>
-          </TouchableOpacity>
-        )}
-        ListEmptyComponent={
-          <Text style={styles.nenhumResultado}>Nenhuma requisição de material encontrada.</Text>
-        }
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-      />
+      {/* Conteúdo */}
+      {showSkeleton ? (
+        <SkeletonNotas />
+      ) : (
+        <FlatList
+          data={notas}
+          keyExtractor={(item) => String(item.id)}
+          scrollEnabled={!isBusy && !navLocked}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#093C85']}
+              tintColor="#093C85"
+            />
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              disabled={isBusy || navLocked}
+              activeOpacity={isBusy || navLocked ? 1 : 0.7}
+              onPress={() => abrirItens(item)}
+            >
+              <View style={styles.notasCard}>
+                <Text style={styles.nome}>{item.nm_custo}</Text>
+                <Text style={styles.numero}>N° {item.nr_mov}</Text>
+                <Text style={styles.valor}>
+                  {new Date(item.dt_mov).toLocaleDateString('pt-BR')}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+          ListEmptyComponent={
+            <Text style={styles.nenhumResultado}>Nenhuma requisição de material encontrada.</Text>
+          }
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+        />
+      )}
 
       {/* Blur + overlay que intercepta toques (apenas durante o refresh) */}
       {refreshing && (

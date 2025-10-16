@@ -2,7 +2,7 @@ import SkeletonNotas from '@/app/components/loading';
 import api from '@/app/services/api';
 import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -25,12 +25,22 @@ export default function SaidasScreen() {
   const [busca, setBusca] = useState('');
   const [notas, setNotas] = useState<any[]>([]);
 
+  // --- LOCK anti-duplo clique ---
+  const [navLocked, setNavLocked] = useState(false);
+  const navLockRef = useRef(false);
+  const lockNavigation = useCallback(() => {
+    navLockRef.current = true;
+    setNavLocked(true);
+    setTimeout(() => {
+      navLockRef.current = false;
+      setNavLocked(false);
+    }, 800); // ajuste se preferir
+  }, []);
+
   const fetchSaidas = useCallback(async () => {
-    let ativo = true;
     setLoading(true);
     try {
       const response = await api.get(`/nfsaidas/${filialSelecionada?.cd_fil}`);
-      if (!ativo) return;
       const dadosFormatados = response.data.map((nfentrada: any) => ({
         nr_nf: nfentrada.nr_nf,
         cd_cli: nfentrada.cd_cli,
@@ -44,27 +54,19 @@ export default function SaidasScreen() {
     } catch (error) {
       console.error('Erro ao buscar saidas', error);
     } finally {
-      if (ativo) {
-        setLoading(false);
-        setRefreshing(false);
-      }
+      setLoading(false);
+      setRefreshing(false);
     }
-    return () => {
-      ativo = false;
-    };
   }, [filialSelecionada]);
 
   useEffect(() => {
-    fetchSaidas();
+    if (filialSelecionada) fetchSaidas();
   }, [filialSelecionada, fetchSaidas]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchSaidas();
   }, [fetchSaidas]);
-
-  // skeleton apenas no primeiro load
-  if (loading && !refreshing) return <SkeletonNotas />;
 
   const filtrarNotas = () => {
     const resultado = notas.filter((p) =>
@@ -75,6 +77,24 @@ export default function SaidasScreen() {
   };
 
   const isBusy = loading || refreshing;
+  const showSkeleton = loading && !refreshing;
+
+  // Navegação segura (respeita busy/lock)
+  const abrirItens = useCallback(
+    (item: any) => {
+      if (isBusy || navLockRef.current) return;
+      lockNavigation();
+      router.push({
+        pathname: '/tabs/menu/saida/itens/itensSaidas',
+        params: {
+          nr_nf: String(item.nr_nf),
+          cd_cli: String(item.cd_cli),
+          nm_cli: String(item.nm_cli),
+        },
+      });
+    },
+    [isBusy, lockNavigation]
+  );
 
   return (
     <View style={styles.container}>
@@ -92,62 +112,61 @@ export default function SaidasScreen() {
           placeholder="Buscar notas..."
           value={busca}
           onChangeText={setBusca}
-          editable={!isBusy}
+          editable={!isBusy && !navLocked}
         />
-        <TouchableOpacity style={styles.botao} onPress={filtrarNotas} disabled={isBusy}>
+        <TouchableOpacity
+          style={styles.botao}
+          onPress={filtrarNotas}
+          disabled={isBusy || navLocked}
+        >
           <Text style={styles.textoBotao}>Buscar</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Lista */}
-      <FlatList
-        data={notas}
-        keyExtractor={(item) => String(item.nr_nf)}
-        scrollEnabled={!isBusy}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#093C85']}
-            tintColor="#093C85"
-          />
-        }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            disabled={isBusy}
-            activeOpacity={isBusy ? 1 : 0.7}
-            onPress={() => {
-              router.push({
-                pathname: '/tabs/menu/saida/itens/itensSaidas',
-                params: {
-                  nr_nf: item.nr_nf,
-                  cd_cli: item.cd_cli,
-                  nm_cli: item.nm_cli,
-                },
-              });
-            }}
-          >
-            <View style={styles.notasCard}>
-              <Text style={styles.nome}>
-                {item.nm_cli} - {item.cd_cli}
-              </Text>
-              <Text style={styles.numero}>
-                N° {item.nr_nf} - {new Date(item.dt_emis).toLocaleDateString('pt-BR')}
-              </Text>
-              <Text style={styles.valor}>
-                {Number(item.vl_nf).toLocaleString('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                })}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
-        ListEmptyComponent={
-          <Text style={styles.nenhumResultado}>Nenhuma nota de saida encontrada.</Text>
-        }
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-      />
+      {/* Conteúdo */}
+      {showSkeleton ? (
+        <SkeletonNotas />
+      ) : (
+        <FlatList
+          data={notas}
+          keyExtractor={(item) => String(item.nr_nf)}
+          scrollEnabled={!isBusy && !navLocked}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#093C85']}
+              tintColor="#093C85"
+            />
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              disabled={isBusy || navLocked}
+              activeOpacity={isBusy || navLocked ? 1 : 0.7}
+              onPress={() => abrirItens(item)}
+            >
+              <View style={styles.notasCard}>
+                <Text style={styles.nome}>
+                  {item.nm_cli} - {item.cd_cli}
+                </Text>
+                <Text style={styles.numero}>
+                  N° {item.nr_nf} - {new Date(item.dt_emis).toLocaleDateString('pt-BR')}
+                </Text>
+                <Text style={styles.valor}>
+                  {Number(item.vl_nf).toLocaleString('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL',
+                  })}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+          ListEmptyComponent={
+            <Text style={styles.nenhumResultado}>Nenhuma nota de saida encontrada.</Text>
+          }
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+        />
+      )}
 
       {/* Desfoque + overlay que intercepta toques (apenas durante o refresh) */}
       {refreshing && (

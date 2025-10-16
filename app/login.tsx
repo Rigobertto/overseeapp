@@ -93,7 +93,7 @@ export default function LoginScreen() {
         await AsyncStorage.setItem('token', token);
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
-        router.push('/tabs/filial');
+        router.replace('/tabs/filial');
         // não precisamos reverter a animação; a tela vai navegar
       } else {
         throw new Error('Credenciais inválidas');
