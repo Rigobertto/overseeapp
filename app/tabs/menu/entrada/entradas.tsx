@@ -21,8 +21,15 @@ export default function EntradasScreen() {
   const { filialSelecionada } = useFilial();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // busca (com debounce)
   const [busca, setBusca] = useState('');
-  const [notas, setNotas] = useState<any[]>([]);
+  const [buscaDebounced, setBuscaDebounced] = useState('');
+  const debounceRef = useRef<number | null>(null);
+
+  // dados
+  const [notasAll, setNotasAll] = useState<any[]>([]);
+  const [notasFiltradas, setNotasFiltradas] = useState<any[]>([]);
 
   // Lock anti-duplo clique
   const [navLocked, setNavLocked] = useState(false);
@@ -34,6 +41,16 @@ export default function EntradasScreen() {
       navLockRef.current = false;
       setNavLocked(false);
     }, 800);
+  }, []);
+
+  // Normaliza texto (remove acentos e deixa minúsculo)
+  const norm = useCallback((s: any) => {
+    if (s === null || s === undefined) return '';
+    return String(s)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
   }, []);
 
   const fetchEntradas = useCallback(async () => {
@@ -48,7 +65,8 @@ export default function EntradasScreen() {
         nm_fil: nfentrada.nm_fil,
         nm_forn: nfentrada.nm_forn,
       }));
-      setNotas(dadosFormatados);
+      setNotasAll(dadosFormatados);
+      setNotasFiltradas(dadosFormatados); // mostra tudo no primeiro load
     } catch (error) {
       console.error('Erro ao buscar entradas', error);
     } finally {
@@ -66,22 +84,48 @@ export default function EntradasScreen() {
     fetchEntradas();
   }, [fetchEntradas]);
 
-  const filtrarNotas = () => {
-    const resultado = notas.filter((p) =>
-      p.nm_forn.toLowerCase().includes(busca.toLowerCase().trim())
-    );
-    setNotas(resultado);
-    Keyboard.dismiss();
-  };
+  // Debounce da busca
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setBuscaDebounced(busca), 200);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [busca]);
+
+  // Filtra reativamente (nm_forn, cd_forn, nr_nfent)
+  useEffect(() => {
+    const q = norm(buscaDebounced);
+    if (!q) {
+      setNotasFiltradas(notasAll);
+      return;
+    }
+
+    const isNumeric = /^\d+$/.test(q);
+
+    const filtradas = notasAll.filter((p) => {
+      const nome = norm(p.nm_forn);
+      const codForn = norm(p.cd_forn);
+      const nf = norm(p.nr_nfent);
+
+      if (isNumeric) {
+        // se digitou apenas números, tenta bater em nr_nfent OU cd_forn
+        return nf.includes(q) || codForn.includes(q) || nome.includes(q);
+      }
+      // texto livre → bate em nome e também nos demais
+      return nome.includes(q) || codForn.includes(q) || nf.includes(q);
+    });
+
+    setNotasFiltradas(filtradas);
+  }, [buscaDebounced, notasAll, norm]);
 
   const isBusy = loading || refreshing;
-
-  // >>> DECLARE TODOS OS HOOKS ANTES DE QUALQUER RETURN <<<
 
   const abrirItens = useCallback(
     (item: any) => {
       if (isBusy || navLockRef.current) return;
       lockNavigation();
+      Keyboard.dismiss();
       router.push({
         pathname: '/tabs/menu/entrada/itens/itensEntradas',
         params: {
@@ -94,7 +138,6 @@ export default function EntradasScreen() {
     [isBusy, lockNavigation]
   );
 
-  // Nada de early-return aqui!
   const showSkeleton = loading && !refreshing;
 
   return (
@@ -106,22 +149,24 @@ export default function EntradasScreen() {
         </Text>
       </View>
 
-      {/* Campo de Busca */}
+      {/* Campo de Busca (live search) */}
       <View style={styles.buscaContainer}>
         <TextInput
           style={styles.input}
-          placeholder="Buscar notas..."
+          placeholder="Nome / CNPJ / CPF / Nº da nota..."
           value={busca}
           onChangeText={setBusca}
           editable={!isBusy && !navLocked}
+          returnKeyType="search"
         />
-        <TouchableOpacity
+        {/* Se quiser manter um botão de limpar: */}
+        {/* <TouchableOpacity
           style={styles.botao}
-          onPress={filtrarNotas}
-          disabled={isBusy || navLocked}
+          onPress={() => setBusca('')}
+          disabled={isBusy || navLocked || !busca}
         >
-          <Text style={styles.textoBotao}>Buscar</Text>
-        </TouchableOpacity>
+          <Text style={styles.textoBotao}>Limpar</Text>
+        </TouchableOpacity> */}
       </View>
 
       {/* Conteúdo */}
@@ -129,8 +174,9 @@ export default function EntradasScreen() {
         <SkeletonNotas />
       ) : (
         <FlatList
-          data={notas}
+          data={notasFiltradas}
           keyExtractor={(item) => String(item.nr_nfent)}
+          keyboardShouldPersistTaps="handled"
           scrollEnabled={!isBusy && !navLocked}
           refreshControl={
             <RefreshControl
@@ -151,7 +197,7 @@ export default function EntradasScreen() {
                   {item.nm_forn} - {item.cd_forn}
                 </Text>
                 <Text style={styles.numero}>
-                  {new Date(item.dt_emis).toLocaleDateString('pt-BR')}
+                  N° {item.nr_nfent} - {new Date(item.dt_emis).toLocaleDateString('pt-BR')}
                 </Text>
                 <Text style={styles.valor}>
                   {Number(item.vl_nota).toLocaleString('pt-BR', {
@@ -163,7 +209,9 @@ export default function EntradasScreen() {
             </TouchableOpacity>
           )}
           ListEmptyComponent={
-            <Text style={styles.nenhumResultado}>Nenhuma nota de entrada encontrada.</Text>
+            <Text style={styles.nenhumResultado}>
+              Nenhuma nota de entrada encontrada.
+            </Text>
           }
           ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
@@ -184,6 +232,7 @@ export default function EntradasScreen() {
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: '#fff' },

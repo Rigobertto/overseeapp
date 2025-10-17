@@ -22,8 +22,15 @@ export default function SaidasScreen() {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Busca com debounce
   const [busca, setBusca] = useState('');
-  const [notas, setNotas] = useState<any[]>([]);
+  const [buscaDebounced, setBuscaDebounced] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Dados
+  const [notasAll, setNotasAll] = useState<any[]>([]);
+  const [notasFiltradas, setNotasFiltradas] = useState<any[]>([]);
 
   // --- LOCK anti-duplo clique ---
   const [navLocked, setNavLocked] = useState(false);
@@ -35,6 +42,16 @@ export default function SaidasScreen() {
       navLockRef.current = false;
       setNavLocked(false);
     }, 800); // ajuste se preferir
+  }, []);
+
+  // Normaliza texto (remove acentos e minúsculas)
+  const norm = useCallback((s: any) => {
+    if (s === null || s === undefined) return '';
+    return String(s)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
   }, []);
 
   const fetchSaidas = useCallback(async () => {
@@ -50,7 +67,8 @@ export default function SaidasScreen() {
         nm_fil: nfentrada.nm_fil,
         nm_cli: nfentrada.nm_cli,
       }));
-      setNotas(dadosFormatados);
+      setNotasAll(dadosFormatados);
+      setNotasFiltradas(dadosFormatados);
     } catch (error) {
       console.error('Erro ao buscar saidas', error);
     } finally {
@@ -68,13 +86,36 @@ export default function SaidasScreen() {
     fetchSaidas();
   }, [fetchSaidas]);
 
-  const filtrarNotas = () => {
-    const resultado = notas.filter((p) =>
-      p.nm_cli?.toLowerCase().includes(busca.toLowerCase().trim())
-    );
-    setNotas(resultado);
-    Keyboard.dismiss();
-  };
+  // Debounce da busca
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setBuscaDebounced(busca), 200);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [busca]);
+
+  // Filtro reativo: nm_cli, cd_cli, nr_nf
+  useEffect(() => {
+    const q = norm(buscaDebounced);
+    if (!q) {
+      setNotasFiltradas(notasAll);
+      return;
+    }
+    const isNumeric = /^\d+$/.test(q);
+
+    const filtradas = notasAll.filter((p) => {
+      const nome = norm(p.nm_cli);
+      const codigo = norm(p.cd_cli);
+      const nf = norm(p.nr_nf);
+      // Se o usuário digitou só números, tenta bater primeiro em nr_nf/cd_cli, mas mantém busca no nome
+      return isNumeric
+        ? nf.includes(q) || codigo.includes(q) || nome.includes(q)
+        : nome.includes(q) || codigo.includes(q) || nf.includes(q);
+    });
+
+    setNotasFiltradas(filtradas);
+  }, [buscaDebounced, notasAll, norm]);
 
   const isBusy = loading || refreshing;
   const showSkeleton = loading && !refreshing;
@@ -84,6 +125,7 @@ export default function SaidasScreen() {
     (item: any) => {
       if (isBusy || navLockRef.current) return;
       lockNavigation();
+      Keyboard.dismiss();
       router.push({
         pathname: '/tabs/menu/saida/itens/itensSaidas',
         params: {
@@ -105,22 +147,25 @@ export default function SaidasScreen() {
         </Text>
       </View>
 
-      {/* Campo de Busca */}
+      {/* Campo de Busca (live search) */}
       <View style={styles.buscaContainer}>
         <TextInput
           style={styles.input}
-          placeholder="Buscar notas..."
+          placeholder="Nome / CNPJ / CPF / Nº da nota..."
           value={busca}
           onChangeText={setBusca}
           editable={!isBusy && !navLocked}
+          keyboardType="default"
+          returnKeyType="search"
         />
+        {/* Botão opcional (ex.: limpar)
         <TouchableOpacity
           style={styles.botao}
-          onPress={filtrarNotas}
-          disabled={isBusy || navLocked}
+          onPress={() => setBusca('')}
+          disabled={isBusy || navLocked || !busca}
         >
-          <Text style={styles.textoBotao}>Buscar</Text>
-        </TouchableOpacity>
+          <Text style={styles.textoBotao}>Limpar</Text>
+        </TouchableOpacity> */}
       </View>
 
       {/* Conteúdo */}
@@ -128,8 +173,9 @@ export default function SaidasScreen() {
         <SkeletonNotas />
       ) : (
         <FlatList
-          data={notas}
+          data={notasFiltradas}
           keyExtractor={(item) => String(item.nr_nf)}
+          keyboardShouldPersistTaps="handled"
           scrollEnabled={!isBusy && !navLocked}
           refreshControl={
             <RefreshControl

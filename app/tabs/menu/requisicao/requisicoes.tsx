@@ -22,8 +22,15 @@ export default function RequisicoesScreen() {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Busca + debounce
   const [busca, setBusca] = useState('');
-  const [notas, setNotas] = useState<any[]>([]);
+  const [buscaDebounced, setBuscaDebounced] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Dados
+  const [requisicoesAll, setRequisicoesAll] = useState<any[]>([]);
+  const [requisicoesFiltradas, setRequisicoesFiltradas] = useState<any[]>([]);
 
   // --- LOCK anti-duplo clique ---
   const [navLocked, setNavLocked] = useState(false);
@@ -34,7 +41,17 @@ export default function RequisicoesScreen() {
     setTimeout(() => {
       navLockRef.current = false;
       setNavLocked(false);
-    }, 800); // ajuste se quiser
+    }, 800);
+  }, []);
+
+  // Normaliza texto (remove acentos e minúsculas)
+  const norm = useCallback((s: any) => {
+    if (s === null || s === undefined) return '';
+    return String(s)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
   }, []);
 
   const fetchRequisicoes = useCallback(async () => {
@@ -48,7 +65,8 @@ export default function RequisicoesScreen() {
         dt_mov: requisicao.dt_mov,
         nm_custo: requisicao.nm_custo,
       }));
-      setNotas(dadosFormatados);
+      setRequisicoesAll(dadosFormatados);
+      setRequisicoesFiltradas(dadosFormatados);
     } catch (error) {
       console.error('Erro ao buscar requisições em: ' + url, error);
     } finally {
@@ -66,21 +84,42 @@ export default function RequisicoesScreen() {
     fetchRequisicoes();
   }, [fetchRequisicoes]);
 
-  const filtrarNotas = () => {
-    const resultado = notas.filter(p =>
-      p.nm_custo.toLowerCase().includes(busca.toLowerCase().trim())
-    );
-    setNotas(resultado);
-    Keyboard.dismiss();
-  };
+  // Debounce da busca
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setBuscaDebounced(busca), 200);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [busca]);
+
+  // Filtro reativo: nr_mov (numérico) ou nm_custo (texto)
+  useEffect(() => {
+    const q = norm(buscaDebounced);
+    if (!q) {
+      setRequisicoesFiltradas(requisicoesAll);
+      return;
+    }
+    const isNumeric = /^\d+$/.test(q);
+
+    const filtradas = requisicoesAll.filter((p) => {
+      const nome = norm(p.nm_custo);
+      const numero = norm(p.nr_mov);
+      // Se digitou apenas números, prioriza número da requisição, mas ainda busca no nome
+      return isNumeric ? numero.includes(q) || nome.includes(q) : nome.includes(q) || numero.includes(q);
+    });
+
+    setRequisicoesFiltradas(filtradas);
+  }, [buscaDebounced, requisicoesAll, norm]);
 
   const isBusy = loading || refreshing;
   const showSkeleton = loading && !refreshing;
 
-  // função segura para navegar (respeita busy/lock)
+  // Navegação segura (respeita busy/lock)
   const abrirItens = useCallback((item: any) => {
     if (isBusy || navLockRef.current) return;
     lockNavigation();
+    Keyboard.dismiss();
     router.push({
       pathname: '/tabs/menu/requisicao/itens/itensRequisicoes',
       params: {
@@ -100,22 +139,25 @@ export default function RequisicoesScreen() {
         </Text>
       </View>
 
-      {/* Campo de Busca */}
+      {/* Campo de Busca (live search) */}
       <View style={styles.buscaContainer}>
         <TextInput
           style={styles.input}
-          placeholder="Buscar por centro de custo..."
+          placeholder="Nº da requisição / Centro de custo"
           value={busca}
           onChangeText={setBusca}
           editable={!isBusy && !navLocked}
+          keyboardType="default"
+          returnKeyType="search"
         />
+        {/* Botão opcional de limpar
         <TouchableOpacity
           style={styles.botao}
-          onPress={filtrarNotas}
-          disabled={isBusy || navLocked}
+          onPress={() => setBusca('')}
+          disabled={isBusy || navLocked || !busca}
         >
-          <Text style={styles.textoBotao}>Buscar</Text>
-        </TouchableOpacity>
+          <Text style={styles.textoBotao}>Limpar</Text>
+        </TouchableOpacity> */}
       </View>
 
       {/* Conteúdo */}
@@ -123,8 +165,9 @@ export default function RequisicoesScreen() {
         <SkeletonNotas />
       ) : (
         <FlatList
-          data={notas}
+          data={requisicoesFiltradas}
           keyExtractor={(item) => String(item.id)}
+          keyboardShouldPersistTaps="handled"
           scrollEnabled={!isBusy && !navLocked}
           refreshControl={
             <RefreshControl
